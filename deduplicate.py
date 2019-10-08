@@ -18,7 +18,6 @@ def main():
             for path in paths:
                 print('--' + path)
         
-
 def walkPath(path, file_list):
     for root, dirs, files in os.walk(path):
         for file_entry in files:
@@ -49,8 +48,6 @@ def condenseFileList(file_list):
         condensed_list.append((f_name, f_path, f_size))
     return condensed_list
             
-
-
 def recPrint(root, indent=''): 
     print(indent + root)
     indent += '|'
