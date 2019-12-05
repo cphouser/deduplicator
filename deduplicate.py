@@ -1,25 +1,32 @@
 import os,sys
 import filecmp
+import inspect
 
 def main():
-    path = sys.argv[1]
+    path_arg = sys.argv[1]
     #print(path)
     #recPrint(path)
     file_list = []
-    walkPath(path, file_list)
+    walkPath(path_arg, file_list)
     #ascending sort file list by size
     file_list.sort(key=lambda x: x[2])
     for entry, path, size in file_list:
-        print(size, entry)
+        print(size, entry, path)
+    print('**condense list**')
     condensed_list = condenseFileList(file_list)
+    print('**list condensed**')
     for names, paths, size in condensed_list:
         if type(names) is list:
             print(', '.join(names))
             for path in paths:
                 print('--' + path)
         
-def walkPath(path, file_list):
-    for root, dirs, files in os.walk(path):
+def walkPath(path_str, file_list):
+    walk_item = os.walk(path_str)
+    #print(walk_item)
+    #print(repr(walk_item))
+    for root, dirs, files in walk_item:
+        print(root, "\ndir list:", dirs, "\nfile list:", files)
         for file_entry in files:
             file_path = os.path.join(root,file_entry)
             file_size = os.path.getsize(file_path)
