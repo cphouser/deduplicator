@@ -6,54 +6,20 @@ def main():
     path_arg = sys.argv[1]
     #print(path)
     #recPrint(path)
-    file_list = []
-    walkPath(path_arg, file_list)
+    file_list = walkPath(path_arg)
     #ascending sort file list by size
-    file_list.sort(key=lambda x: x[2])
-    for entry, path, size in file_list:
+    file_list.sort(key=lambda x: x[1])
+    for entry, size, path in file_list:
         print(size, entry, path)
     print('**condense list**')
     condensed_list = condenseFileList(file_list)
     print('**list condensed**')
-    for names, paths, size in condensed_list:
+    for names, size, paths in condensed_list:
+        print(size, names, paths)
         if type(names) is list:
             print(', '.join(names))
             for path in paths:
                 print('--' + path)
-        
-def walkPath(path_str, file_list):
-    walk_item = os.walk(path_str)
-    #print(walk_item)
-    #print(repr(walk_item))
-    for root, dirs, files in walk_item:
-        print(root, "\ndir list:", dirs, "\nfile list:", files)
-        for file_entry in files:
-            file_path = os.path.join(root,file_entry)
-            file_size = os.path.getsize(file_path)
-            file_list.append((file_entry, file_path, file_size))
-
-def condenseFileList(file_list):
-    condensed_list = [file_list.pop(0)]
-    for f_name, f_path, f_size in file_list:
-        if f_size == 0:
-            condensed_list.append((f_name, f_path, f_size))
-            continue
-        other_name, other_path, other_size = condensed_list[-1]
-        if f_size == other_size:
-            if type(other_path) is list:
-                print('**', other_path[0], f_path)
-                if filecmp.cmp(other_path[0], f_path, shallow=False):
-                    condensed_list[-1] = (other_name.append(f_name),
-                            other_path.append(f_path), f_size)
-                continue
-            else:
-                print(other_path, f_path)
-                if filecmp.cmp(other_path, f_path, shallow=False):
-                    condensed_list[-1] = ([other_name, f_name],
-                            [other_path, f_path], f_size)
-                    continue
-        condensed_list.append((f_name, f_path, f_size))
-    return condensed_list
             
 def recPrint(root, indent=''): 
     print(indent + root)
@@ -73,6 +39,48 @@ def recPrint(root, indent=''):
         print(indent + '..')
     for dir_entry in dir_list:
         recPrint(dir_entry, indent)
+
+def walkPath(path_str):
+    """Return list of all files in path_str and subdirectories
+    
+    Each item in returned list is a tuple (file_name, file_size, file_path)
+    """
+    walk_item = os.walk(path_str)
+    file_list = []
+    #print(walk_item)
+    #print(repr(walk_item))
+    for root, dirs, files in walk_item:
+        #print(root, "\ndir list:", dirs, "\nfile list:", files)
+        for file_entry in files:
+            file_path = os.path.join(root,file_entry)
+            file_size = os.path.getsize(file_path)
+            file_list.append((file_entry, file_size, file_path))
+    return file_list
+
+def condenseFileList(file_list):
+    condensed_list = [file_list.pop(0)]
+    for f_name, f_size, f_path in file_list:
+        if f_size == 0:
+            condensed_list.append((f_name, f_size, f_path))
+            continue
+        other_name, other_size, other_path = condensed_list[-1]
+        if f_size == other_size:
+            if type(other_path) is list:
+                print('aa')
+                print('**', other_path[0], f_path)
+                if filecmp.cmp(other_path[0], f_path, shallow=False):
+                    condensed_list[-1] = (other_name.append(f_name),
+                            f_size, other_path.append(f_path))
+                continue
+            else:
+                print('bb')
+                print(other_path, f_path)
+                if filecmp.cmp(other_path, f_path, shallow=False):
+                    condensed_list[-1] = ([other_name, f_name],
+                            f_size, [other_path, f_path])
+                    continue
+        condensed_list.append((f_name, f_size, f_path))
+    return condensed_list
 
 if __name__ == '__main__':
     main()
