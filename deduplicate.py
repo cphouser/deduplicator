@@ -5,22 +5,28 @@ import inspect
 def main():
     path_arg = sys.argv[1]
     #print(path)
-    #recPrint(path)
-    file_list = walkPath(path_arg)
+    recPrint(path_arg)
+    #file_list = walkPath(path_arg)
     #ascending sort file list by size
-    file_list.sort(key=lambda x: x[1])
-    for entry, size, path in file_list:
-        print(size, entry, path)
-    print('**condense list**')
-    condensed_list = condenseFileList(file_list)
-    print('**list condensed**')
-    for names, size, paths in condensed_list:
-        print(size, names, paths)
-        if type(names) is list:
-            print(', '.join(names))
-            for path in paths:
-                print('--' + path)
-            
+    
+    #file_list.sort(key=lambda x: x[1])
+    #for entry, size, path in file_list:
+    #    print(size, entry, path)
+    #print('**condense list**')
+    #condensed_list = condenseFileList(file_list)
+    #print('**list condensed**')
+    #for names, size, paths in condensed_list:
+    #    print(size, names, paths)
+    #    if type(names) is list:
+    #        print(', '.join(names))
+    #        for path in paths:
+    #            print('--' + path)
+
+def recScan(root):
+    dir_list = os.scandir(root)
+    for dir_entry in dir_list:
+        pass
+
 def recPrint(root, indent=''): 
     print(indent + root)
     indent += '|'
@@ -36,7 +42,7 @@ def recPrint(root, indent=''):
     for file_entry in file_list:
         print(indent + file_entry)
     else:
-        print(indent + '..')
+        print(indent + '_')
     for dir_entry in dir_list:
         recPrint(dir_entry, indent)
 
