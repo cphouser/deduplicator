@@ -5,7 +5,7 @@ import inspect
 def main():
     path_arg = sys.argv[1]
     #print(path)
-    recPrint(path_arg)
+    recScan(path_arg)
     #file_list = walkPath(path_arg)
     #ascending sort file list by size
     
@@ -24,8 +24,17 @@ def main():
 
 def recScan(root):
     dir_list = os.scandir(root)
-    for dir_entry in dir_list:
-        pass
+    directories = [entry for entry in dir_list if entry.is_dir()]
+    for dir_entry in directories:
+        print(dir_entry.name, dir_entry.path)
+        #if 
+        #dir_stat = dir_entry.stat()
+        #print('|mode:', dir_stat.st_mode)
+        #print('|size:', dir_stat.st_size)
+        #print('|ctime:', dir_stat.st_ctime,
+        #        'mtime:', dir_stat.st_mtime,
+        #        'atime:', dir_stat.st_atime)
+        #print('|owner uid:', dir_stat.st_uid, '\n')
 
 def recPrint(root, indent=''): 
     print(indent + root)
