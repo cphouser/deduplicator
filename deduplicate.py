@@ -26,6 +26,7 @@ def main():
     #            print('--' + path)
 
 def recrScan(root, rescan=False):
+    # check for an existing SCAN_RECORD
     dedup_record_path = os.path.join(root, SCAN_RECORD)
     if os.path.isfile(dedup_record_path):
         if rescan == True:
@@ -36,21 +37,36 @@ def recrScan(root, rescan=False):
     else:
         print(dedup_record_path, 'doesn\'t exist! (new dir found)')
 
-    print(root)
     # build SCAN_RECORD in 'root'
-    dir_list = os.scandir(root)
-
+    directories, files, symlinks = scanDir(root)
     # 1) make sure subdirectories have SCAN_RECORDs
-    directories = [entry for entry in dir_list if entry.is_dir()]
-    #print(len(directories),"subdirectories")
     for dir_entry in directories:
         recrScan(dir_entry.path, rescan=rescan)
-        print('*end', dir_entry.name)
+        #print('*end', dir_entry.name)
     # 2) fill initial SCAN_RECORD for this folder
-    files = [entry for entry in dir_list if entry.is_file()]
-
+    for dir_entry in files:
+        print(dir_entry.name)
     
+def scanDir(root):
+    """return a 3-tuple of directories, files, and symlinks in dir_path
 
+    each item is a list of dirEntry objects as returned by os.scanDir()
+    entries in directories and files are not symbolic links. 
+    entries in symlinks may link to either directories or files
+    """
+    dir_list = os.scandir(root)
+    directories = []
+    files = []
+    symlinks = []
+    for entry in dir_list:
+        if entry.is_dir(follow_symlinks=False):
+            directories.append(entry)
+        elif entry.is_file(follow_symlinks=False):
+            files.append(entry)
+        elif entry.is_symlink():
+            symlinks.append(entry)
+    return (directories, files, symlinks)
+    
 def recPrint(root, indent=''): 
     print(indent + root)
     indent += '|'
