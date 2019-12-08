@@ -42,11 +42,14 @@ def recrScan(root, rescan=False):
 
     # 1) make sure subdirectories have SCAN_RECORDs
     directories = [entry for entry in dir_list if entry.is_dir()]
+    #print(len(directories),"subdirectories")
     for dir_entry in directories:
         recrScan(dir_entry.path, rescan=rescan)
         print('*end', dir_entry.name)
+    # 2) fill initial SCAN_RECORD for this folder
+    files = [entry for entry in dir_list if entry.is_file()]
 
-    # 2) 
+    
 
 def recPrint(root, indent=''): 
     print(indent + root)
