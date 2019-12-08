@@ -2,10 +2,13 @@ import os,sys
 import filecmp
 import inspect
 
+SCAN_RECORD = '.deduplicator_record'
+PREV_SCAN_RECORD = '.deduplicator_record_prev'
+
 def main():
     path_arg = sys.argv[1]
     #print(path)
-    recScan(path_arg)
+    recrScan(path_arg)
     #file_list = walkPath(path_arg)
     #ascending sort file list by size
     
@@ -22,19 +25,28 @@ def main():
     #        for path in paths:
     #            print('--' + path)
 
-def recScan(root):
+def recrScan(root, rescan=False):
+    dedup_record_path = os.path.join(root, SCAN_RECORD)
+    if os.path.isfile(dedup_record_path):
+        if rescan == True:
+            pass
+            #rename SCAN_RECORD to PREV_SCAN_RECORD and delete SCAN_RECORD
+        else:
+            return
+    else:
+        print(dedup_record_path, 'doesn\'t exist! (new dir found)')
+
+    print(root)
+    # build SCAN_RECORD in 'root'
     dir_list = os.scandir(root)
+
+    # 1) make sure subdirectories have SCAN_RECORDs
     directories = [entry for entry in dir_list if entry.is_dir()]
     for dir_entry in directories:
-        print(dir_entry.name, dir_entry.path)
-        #if 
-        #dir_stat = dir_entry.stat()
-        #print('|mode:', dir_stat.st_mode)
-        #print('|size:', dir_stat.st_size)
-        #print('|ctime:', dir_stat.st_ctime,
-        #        'mtime:', dir_stat.st_mtime,
-        #        'atime:', dir_stat.st_atime)
-        #print('|owner uid:', dir_stat.st_uid, '\n')
+        recrScan(dir_entry.path, rescan=rescan)
+        print('*end', dir_entry.name)
+
+    # 2) 
 
 def recPrint(root, indent=''): 
     print(indent + root)
