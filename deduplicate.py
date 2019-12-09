@@ -1,9 +1,13 @@
 import os,sys
 import filecmp
-import inspect
+import csv
+import zlib
+from collections import namedtuple
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
+RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'c_time', 'dups']
+FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
     path_arg = sys.argv[1]
@@ -38,15 +42,33 @@ def recrScan(root, rescan=False):
         print(dedup_record_path, 'doesn\'t exist! (new dir found)')
 
     # build SCAN_RECORD in 'root'
-    directories, files, symlinks = scanDir(root)
+    dir_list, file_list, sym_list = scanDir(root)
     # 1) make sure subdirectories have SCAN_RECORDs
-    for dir_entry in directories:
+    for dir_entry in dir_list:
         recrScan(dir_entry.path, rescan=rescan)
-        #print('*end', dir_entry.name)
     # 2) fill initial SCAN_RECORD for this folder
-    for dir_entry in files:
+    #print([entry.name for entry in file_list])
+    file_list.sort(key=lambda x: x.stat().st_size)
+    #print([entry.name for entry in file_list])
+    for dir_entry in file_list:
         print(dir_entry.name)
-    
+
+def listToFile(save_path):
+    """save a list of FileRecord objects to save_path/SCAN_RECORD
+
+    Assume save_path points to a directory. Clobber any existing
+    SCAN_RECORD
+    """
+    with open('.deduplicator_record', mode='w', newline='') as record_csv:
+        pass
+        
+def fileData(dir_entry):
+    """return a FileRecord of the corresponding directory entry
+
+    Assume dir_entry points to a file. Do not populate 'dups' field
+    """
+    pass
+
 def scanDir(root):
     """return a 3-tuple of directories, files, and symlinks in dir_path
 
