@@ -12,16 +12,59 @@ FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
     path_arg = sys.argv[1]
-    #print(path)
+    
+    # build a list of files in each directory
     recrScan(path_arg)
+
+    recrDupSearch(path_arg)
+
+def recrDupSearch(path):
+    dir_list, _, _ = scanDir(path)
+    subdir_file_dict = {}
+    for dir_entry in dir_list:
+        mergeFileDict(subdir_file_dict, recrDupSearch(dir_entry.path))
+    local_file_dict, empty_file_list = loadScanRecord(path)
+    mergeFileDict(local_file_dict, subdir_file_dict)
+    margin_len = path.count('/')
+    margin = ''
+    for i in range(margin_len):
+        margin = margin + ' '
+    print(margin+path)
+    print(margin+str(empty_file_list), *local_file_dict.items()
+            , sep='\n'+margin)
+    return local_file_dict
+
+def loadScanRecord(path):
+    record_path = os.path.join(path, SCAN_RECORD)
+    file_dict = {}
+    empty_file_list = []
+    with open(record_path, newline='') as scanrecord_csv:
+        reader = csv.DictReader(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
+        for row in reader:
+            file_path = os.path.join(path, row['name'])
+            #print('****', file_path)
+            if row['size'] == '0':
+                empty_file_list.append(file_path)
+            else:
+                file_dict.update({(int(row['csum']), int(row['size'])): 
+                    [file_path]})
+    return file_dict, empty_file_list
+
+def mergeFileDict(root_dict, sub_dict):
+    for key, paths in sub_dict.items():
+        if key in root_dict:
+            r_paths = root_dict[key]
+            r_paths.extend(paths)
+        else:
+            root_dict.update({key: paths})
 
 def recrScan(root, rescan=True):
     # check for an existing SCAN_RECORD
     dedup_record_path = os.path.join(root, SCAN_RECORD)
     if os.path.isfile(dedup_record_path):
         if rescan == True:
-            pass
-            #rename SCAN_RECORD to PREV_SCAN_RECORD and delete SCAN_RECORD
+            old_path = os.path.join(root, PREV_SCAN_RECORD)
+            os.replace(dedup_record_path, old_path)
         else:
             return
     else:
@@ -96,7 +139,8 @@ def scanDir(root):
         if entry.is_dir(follow_symlinks=False):
             directories.append(entry)
         elif entry.is_file(follow_symlinks=False):
-            if entry.name != SCAN_RECORD:
+            if (entry.name != SCAN_RECORD
+                    and entry.name != PREV_SCAN_RECORD):
                 files.append(entry)
         elif entry.is_symlink():
             symlinks.append(entry)
