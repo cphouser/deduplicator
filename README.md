@@ -1,6 +1,8 @@
 *copied from a conversation explaining this idea*
+
 i've been looking for a script which checks for duplicate files and folders and gives me a good summary of that information
 decided to write my own because I don't really know what I want especially wrt to that last point
+
 the steps to solving this problem are therefore kinda like:
 1) list the files
 2) check for duplicates
