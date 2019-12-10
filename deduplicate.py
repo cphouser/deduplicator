@@ -6,7 +6,7 @@ from collections import namedtuple
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
-RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'c_time', 'dups']
+RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
@@ -51,7 +51,8 @@ def recrScan(root, rescan=False):
     file_list.sort(key=lambda x: x.stat().st_size)
     #print([entry.name for entry in file_list])
     for dir_entry in file_list:
-        print(dir_entry.name)
+        dedup_record = fileData(dir_entry)
+        print(hex(dedup_record.csum))
 
 def listToFile(save_path):
     """save a list of FileRecord objects to save_path/SCAN_RECORD
@@ -65,9 +66,31 @@ def listToFile(save_path):
 def fileData(dir_entry):
     """return a FileRecord of the corresponding directory entry
 
-    Assume dir_entry points to a file. Do not populate 'dups' field
+    Assume dir_entry points to a file. Populate 'dups' field w/ empty list
     """
-    pass
+    file_stat = dir_entry.stat()
+    return FileRecord(name=dir_entry.name, size=file_stat.st_size
+            , csum=crc32(dir_entry.path)
+            , m_time=file_stat.st_mtime, dups=[])
+
+def crc32(filename):
+    """open specified file and calculate crc32, return as hex string
+
+    copied from CrouZ's answer: 
+    stackoverflow.com/questions/1742866/compute-crc-of-file-in-python
+    """
+    fh = open(filename, 'rb')
+    result = 0
+    while True:
+        #read in 64 kb chunks
+        s = fh.read(65536)
+        if not s:
+            break
+        result = zlib.crc32(s, result)
+    fh.close()
+    #print(hex(result))
+    #return "%08X" % (result & 0xFFFFFFFF)
+    return result
 
 def scanDir(root):
     """return a 3-tuple of directories, files, and symlinks in dir_path
@@ -89,6 +112,7 @@ def scanDir(root):
             symlinks.append(entry)
     return (directories, files, symlinks)
     
+#older functions below
 def recPrint(root, indent=''): 
     print(indent + root)
     indent += '|'
