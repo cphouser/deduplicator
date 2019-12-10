@@ -15,7 +15,7 @@ def main():
     #print(path)
     recrScan(path_arg)
 
-def recrScan(root, rescan=False):
+def recrScan(root, rescan=True):
     # check for an existing SCAN_RECORD
     dedup_record_path = os.path.join(root, SCAN_RECORD)
     if os.path.isfile(dedup_record_path):
@@ -35,8 +35,8 @@ def recrScan(root, rescan=False):
     # 2) fill initial SCAN_RECORD for this folder
     fr_list = [fileData(dir_entry) for dir_entry in file_list]
     fr_list.sort(key=lambda x: x.size)
-    #for fr in fr_list:
-    #    print(fr.size, fr.csum, fr.name, datetime.fromtimestamp(fr.m_time))
+    for fr in fr_list:
+        print(fr.size, fr.csum, fr.name, datetime.fromtimestamp(fr.m_time))
     listToFile(dedup_record_path, fr_list)
 
 def listToFile(save_path, filerecord_list):
@@ -45,16 +45,11 @@ def listToFile(save_path, filerecord_list):
     Assume save_path points to a directory. Clobber any existing
     SCAN_RECORD
     """
-    #file_path = os.path.join(save_path, SCAN_RECORD)
-    print(save_path)
-    try:
-        with open(save_path, mode='w', newline='') as scanrecord_csv:
-            writer = csv.DictWriter(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
-            for filerecord in filerecord_list:
-                writer.writerow(filerecord._asdict())
-                print(filerecord._asdict())
-    except Exception as e:
-        print(e)
+    #print(save_path)
+    with open(save_path, mode='w', newline='') as scanrecord_csv:
+        writer = csv.DictWriter(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
+        for filerecord in filerecord_list:
+            writer.writerow(filerecord._asdict())
         
 def fileData(dir_entry):
     """return a FileRecord of the corresponding directory entry
@@ -89,6 +84,7 @@ def scanDir(root):
     """return a 3-tuple of directories, files, and symlinks in dir_path
 
     each item is a list of dirEntry objects as returned by os.scanDir()
+    entries with name matching SCAN_RECORD are not included in file list
     entries in directories and files are not symbolic links. 
     entries in symlinks may link to either directories or files
     """
@@ -100,7 +96,8 @@ def scanDir(root):
         if entry.is_dir(follow_symlinks=False):
             directories.append(entry)
         elif entry.is_file(follow_symlinks=False):
-            files.append(entry)
+            if entry.name != SCAN_RECORD:
+                files.append(entry)
         elif entry.is_symlink():
             symlinks.append(entry)
     return (directories, files, symlinks)
