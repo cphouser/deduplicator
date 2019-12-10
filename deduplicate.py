@@ -3,6 +3,7 @@ import filecmp
 import csv
 import zlib
 from collections import namedtuple
+from datetime import datetime
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
@@ -13,21 +14,6 @@ def main():
     path_arg = sys.argv[1]
     #print(path)
     recrScan(path_arg)
-    #file_list = walkPath(path_arg)
-    #ascending sort file list by size
-    
-    #file_list.sort(key=lambda x: x[1])
-    #for entry, size, path in file_list:
-    #    print(size, entry, path)
-    #print('**condense list**')
-    #condensed_list = condenseFileList(file_list)
-    #print('**list condensed**')
-    #for names, size, paths in condensed_list:
-    #    print(size, names, paths)
-    #    if type(names) is list:
-    #        print(', '.join(names))
-    #        for path in paths:
-    #            print('--' + path)
 
 def recrScan(root, rescan=False):
     # check for an existing SCAN_RECORD
@@ -47,21 +33,28 @@ def recrScan(root, rescan=False):
     for dir_entry in dir_list:
         recrScan(dir_entry.path, rescan=rescan)
     # 2) fill initial SCAN_RECORD for this folder
-    #print([entry.name for entry in file_list])
-    file_list.sort(key=lambda x: x.stat().st_size)
-    #print([entry.name for entry in file_list])
-    for dir_entry in file_list:
-        dedup_record = fileData(dir_entry)
-        print(hex(dedup_record.csum))
+    fr_list = [fileData(dir_entry) for dir_entry in file_list]
+    fr_list.sort(key=lambda x: x.size)
+    #for fr in fr_list:
+    #    print(fr.size, fr.csum, fr.name, datetime.fromtimestamp(fr.m_time))
+    listToFile(dedup_record_path, fr_list)
 
-def listToFile(save_path):
+def listToFile(save_path, filerecord_list):
     """save a list of FileRecord objects to save_path/SCAN_RECORD
 
     Assume save_path points to a directory. Clobber any existing
     SCAN_RECORD
     """
-    with open('.deduplicator_record', mode='w', newline='') as record_csv:
-        pass
+    #file_path = os.path.join(save_path, SCAN_RECORD)
+    print(save_path)
+    try:
+        with open(save_path, mode='w', newline='') as scanrecord_csv:
+            writer = csv.DictWriter(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
+            for filerecord in filerecord_list:
+                writer.writerow(filerecord._asdict())
+                print(filerecord._asdict())
+    except Exception as e:
+        print(e)
         
 def fileData(dir_entry):
     """return a FileRecord of the corresponding directory entry
