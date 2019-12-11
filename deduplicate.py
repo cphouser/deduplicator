@@ -4,6 +4,7 @@ import csv
 import zlib
 from collections import namedtuple
 from datetime import datetime
+from pathlib import Path
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
@@ -15,8 +16,10 @@ def main():
     
     # build a list of files in each directory
     recrScan(path_arg)
-
-    recrDupSearch(path_arg)
+    
+    # add duplicates to each scan record
+    fileDict = recrDupSearch(path_arg)
+    print(*fileDict.items(), sep='\n')
 
 def recrDupSearch(path):
     dir_list, _, _ = scanDir(path)
@@ -25,14 +28,35 @@ def recrDupSearch(path):
         mergeFileDict(subdir_file_dict, recrDupSearch(dir_entry.path))
     local_file_dict, empty_file_list = loadScanRecord(path)
     mergeFileDict(local_file_dict, subdir_file_dict)
-    margin_len = path.count('/')
-    margin = ''
-    for i in range(margin_len):
-        margin = margin + ' '
-    print(margin+path)
-    print(margin+str(empty_file_list), *local_file_dict.items()
-            , sep='\n'+margin)
+    resaveScanRecord(path, subdir_file_dict)
+
+    #margin_len = path.count('/')
+    #margin = ''
+    #for i in range(margin_len):
+    #    margin = margin + ' '
+    #print(margin+path)
+    #print(margin+str(empty_file_list), *local_file_dict.items()
+    #        , sep='\n'+margin)
     return local_file_dict
+
+def resaveScanRecord(path, subdir_file_dict):
+    record_path = os.path.join(path, SCAN_RECORD)
+    fr_list = []
+    with open(record_path, newline='') as scanrecord_csv:
+        reader = csv.DictReader(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
+        for row in reader:
+            fr = FileRecord(row['name'], int(row['size']), int(row['csum'])
+                , float(row['m_time']), [])
+            fr_list.append(fr)
+    for fr in fr_list:
+        if fr.size == 0:
+            continue
+        if (fr.csum, fr.size) in subdir_file_dict:
+            dup_list = subdir_file_dict[fr.csum, fr.size]
+            for dup_path in dup_list:
+                dup_relpath = os.path.relpath(dup_path, path)
+                fr.dups.append(dup_relpath)
+    listToFile(record_path, fr_list)
 
 def loadScanRecord(path):
     record_path = os.path.join(path, SCAN_RECORD)
@@ -42,7 +66,6 @@ def loadScanRecord(path):
         reader = csv.DictReader(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
         for row in reader:
             file_path = os.path.join(path, row['name'])
-            #print('****', file_path)
             if row['size'] == '0':
                 empty_file_list.append(file_path)
             else:
@@ -78,8 +101,6 @@ def recrScan(root, rescan=True):
     # 2) fill initial SCAN_RECORD for this folder
     fr_list = [fileData(dir_entry) for dir_entry in file_list]
     fr_list.sort(key=lambda x: x.size)
-    for fr in fr_list:
-        print(fr.size, fr.csum, fr.name, datetime.fromtimestamp(fr.m_time))
     listToFile(dedup_record_path, fr_list)
 
 def listToFile(save_path, filerecord_list):
