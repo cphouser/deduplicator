@@ -26,8 +26,6 @@ def recrDupSearch(path):
     subdir_file_dict = {}
     for dir_entry in dir_list:
         mergeFileDict(subdir_file_dict, recrDupSearch(dir_entry.path))
-    local_file_dict, empty_file_list = loadScanRecord(path)
-    mergeFileDict(local_file_dict, subdir_file_dict)
     resaveScanRecord(path, subdir_file_dict)
 
     #margin_len = path.count('/')
@@ -37,6 +35,8 @@ def recrDupSearch(path):
     #print(margin+path)
     #print(margin+str(empty_file_list), *local_file_dict.items()
     #        , sep='\n'+margin)
+    local_file_dict = loadScanRecordAsDict(path)
+    mergeFileDict(local_file_dict, subdir_file_dict)
     return local_file_dict
 
 def resaveScanRecord(path, subdir_file_dict):
@@ -58,22 +58,32 @@ def resaveScanRecord(path, subdir_file_dict):
                 fr.dups.append(dup_relpath)
     listToFile(record_path, fr_list)
 
-def loadScanRecord(path):
+def loadScanRecordAsDict(path):
+    """load a SCAN_RECORD in directory 'path' and return entries as dict
+
+    exclude all empty files. Keys in dict are tuples (file_chksum, file_size)
+    and values are singleton lists of relative paths to each file.
+    """
     record_path = os.path.join(path, SCAN_RECORD)
     file_dict = {}
-    empty_file_list = []
+    #empty_file_list = []
     with open(record_path, newline='') as scanrecord_csv:
         reader = csv.DictReader(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
         for row in reader:
             file_path = os.path.join(path, row['name'])
-            if row['size'] == '0':
-                empty_file_list.append(file_path)
-            else:
+            if row['size'] != '0':
+            #    empty_file_list.append(file_path)
+            #else:
                 file_dict.update({(int(row['csum']), int(row['size'])): 
                     [file_path]})
-    return file_dict, empty_file_list
+    return file_dict
 
 def mergeFileDict(root_dict, sub_dict):
+    """modify root_dict to add items from sub_dict. assume values are lists.
+    
+    if a key exists in both, extend value of the key in root_dict with the 
+    value in sub_dict
+    """
     for key, paths in sub_dict.items():
         if key in root_dict:
             r_paths = root_dict[key]
@@ -82,6 +92,11 @@ def mergeFileDict(root_dict, sub_dict):
             root_dict.update({key: paths})
 
 def recrScan(root, rescan=True):
+    """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
+
+    fields defined by RECORD_FIELDNAMES, rows list each file located in the
+    directory. dups field is not populated.
+    """
     # check for an existing SCAN_RECORD
     dedup_record_path = os.path.join(root, SCAN_RECORD)
     if os.path.isfile(dedup_record_path):
