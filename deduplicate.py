@@ -6,6 +6,7 @@ from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
 from operator import itemgetter
+import yaml
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
@@ -26,14 +27,27 @@ def main():
     # write summary for found duplicates
     writeSummary(path_arg, file_dict)
 
-def writeSummary(path, file_dict):
-    file_list = []
+def writeSummary(s_path, file_dict):
+    dup_list = []
+    unique_list = []
     for (chksm, size), dups in file_dict.items():
-        for path in dups:
-            name = os.path.basename(path)
-            file_list.append((name, size, chksm, path))
-    file_list.sort(key=itemgetter(1), reverse=True)
-    print(*file_list, sep='\n')
+        if len(dups) > 1:
+            for path in dups:
+                #name = os.path.basename(path)
+                dup_list.append((path, size, chksm))
+        else:
+            #name = os.path.basename(dups[0])
+            unique_list.append((dups[0], size, chksm))
+    
+    dup_list.sort(key=itemgetter(1), reverse=True)
+    unique_list.sort(key=itemgetter(1), reverse=True)
+    with open(os.path.join(s_path,SCAN_SUMMARY), 'w', newline='') as sum_file:
+        yaml.dump_all((dup_list, unique_list), sum_file)
+
+    #print('duplicate list')
+    print(yaml.dump_all((dup_list, unique_list)))
+    #print('unique list')
+    #print(*unique_list, sep='\n')
 
 
 def recrDupSearch(path):
