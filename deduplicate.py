@@ -5,9 +5,12 @@ import zlib
 from collections import namedtuple
 from datetime import datetime
 from pathlib import Path
+from operator import itemgetter
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
+SCAN_SUMMARY = 'deduplicator_summary'
+PREV_SCAN_SUMMARY = 'deduplicator_summary_prev'
 RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
@@ -18,8 +21,20 @@ def main():
     recrScan(path_arg)
     
     # add duplicates to each scan record
-    fileDict = recrDupSearch(path_arg)
-    print(*fileDict.items(), sep='\n')
+    file_dict = recrDupSearch(path_arg)
+
+    # write summary for found duplicates
+    writeSummary(path_arg, file_dict)
+
+def writeSummary(path, file_dict):
+    file_list = []
+    for (chksm, size), dups in file_dict.items():
+        for path in dups:
+            name = os.path.basename(path)
+            file_list.append((name, size, chksm, path))
+    file_list.sort(key=itemgetter(1), reverse=True)
+    print(*file_list, sep='\n')
+
 
 def recrDupSearch(path):
     dir_list, _, _ = scanDir(path)
@@ -74,8 +89,10 @@ def loadScanRecordAsDict(path):
             if row['size'] != '0':
             #    empty_file_list.append(file_path)
             #else:
-                file_dict.update({(int(row['csum']), int(row['size'])): 
-                    [file_path]})
+            #    file_dict.update({(int(row['csum']), int(row['size'])): 
+            #        [file_path]})
+                mergeFileDict(file_dict,
+                        {(int(row['csum']), int(row['size'])): [file_path]})
     return file_dict
 
 def mergeFileDict(root_dict, sub_dict):
