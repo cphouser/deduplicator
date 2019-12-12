@@ -1,20 +1,14 @@
-*copied from a conversation explaining this idea*
+#Finding Duplicate Files in File Tree
+Working project to summarize infomation for filesystem cleaning.
 
-i've been looking for a script which checks for duplicate files and folders and gives me a good summary of that information
+##Current Functionality
+Tested with Python 3.5.3
+```
+python3 deduplicate.py path
+```
+Runs the scan for duplicate files in the directory *path*. Calculates a checksum of the first 4 MiB of each file at *path* and stores this along with each file's size in a *.scan_record* file in the directory. Recursively generates this file for each subdirectory. Compares entries in these files to generate a list of duplicate files and a list of unique files. Store each of these lists in a *deduplicator_summary* file.
+```
+python3 deduplicate.py -c path
+```
+Deletes the *.scan_record* and *.scan_record_prev* files from directory *path* (if they exist) and from each nested subdirectory.
 
-decided to write my own because I don't really know what I want especially wrt to that last point
-
-the steps to solving this problem are therefore kinda like:
-1) list the files
-2) check for duplicates
-3) summarize that info
-
-im making it a bit complicated to deal with the idea that i might be running it multiple times on the same files
-and also the idea that I have total like over a TB of data so it might get halfway thru and then crash or something
-
-basically my complexity is that its designed to save its work in somewhat readable files and use that work if you ask it to run again
-(unless you ask it to ignore past work and then it overwrites ofc)
-
-im stating this like its all done but right now it just puts a list of files in every directory (the list is of the files in that directory and some other data for later comparison)
-
-okay thats it
