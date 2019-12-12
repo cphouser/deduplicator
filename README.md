@@ -1,7 +1,7 @@
-#Finding Duplicate Files in File Tree
+# Finding Duplicate Files in File Tree
 Working project to summarize infomation for filesystem cleaning.
 
-##Current Functionality
+## Current Functionality
 Tested with Python 3.5.3
 ```
 python3 deduplicate.py path
