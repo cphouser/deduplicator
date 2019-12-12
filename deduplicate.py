@@ -163,7 +163,7 @@ def recrScan(root, rescan=False):
             old_path = os.path.join(root, PREV_SCAN_RECORD)
             os.replace(dedup_record_path, old_path)
         else:
-            print(dedup_record_path, '\n\tfound! using previous results'
+            print(dedup_record_path, '\n\tfound! using previous results')
             return
     else:
         print(dedup_record_path, '\n\tdoesn\'t exist! (new dir found)')
