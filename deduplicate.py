@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from operator import itemgetter
 import yaml
+import argparse
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
@@ -16,16 +17,43 @@ RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
-    path_arg = sys.argv[1]
-    
-    # build a list of files in each directory
-    recrScan(path_arg)
-    
-    # add duplicates to each scan record
-    file_dict = recrDupSearch(path_arg)
+    parser = argparse.ArgumentParser(description=
+            'Build lists of duplicate files.')
+    parser.add_argument('path', help=
+            'the path to the directory to run the script in')
+    parser.add_argument('-c', '--clean', action='store_true', help=
+            'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
+    args = parser.parse_args()
+    path_arg = args.path
+    if args.clean:
+        print('clean', path_arg)
+        #clean directory
+        removeScanFiles(path_arg)
+    else:
+        # build a list of files in each directory
+        print('building scan records')
+        recrScan(path_arg)
+        
+        print('checking for duplicates')
+        # add duplicates to each scan record
+        file_dict = recrDupSearch(path_arg)
 
-    # write summary for found duplicates
-    writeSummary(path_arg, file_dict)
+        print('writing summary file to ', os.path.join(path_arg, SCAN_SUMMARY))
+        # write summary for found duplicates
+        writeSummary(path_arg, file_dict)
+
+def removeScanFiles(path):
+    dir_list, _, _ = scanDir(path)
+    for dir_entry in dir_list:
+        removeScanFiles(dir_entry.path)
+    try:
+        os.remove(os.path.join(path, SCAN_RECORD))
+    except FileNotFoundError:
+        print(SCAN_RECORD, 'not found in', path)
+    try:
+        os.remove(os.path.join(path, PREV_SCAN_RECORD))
+    except FileNotFoundError:
+        print(PREV_SCAN_RECORD, 'not found in', path)
 
 def writeSummary(s_path, file_dict):
     dup_list = []
