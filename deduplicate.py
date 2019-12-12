@@ -150,7 +150,7 @@ def mergeFileDict(root_dict, sub_dict):
         else:
             root_dict.update({key: paths})
 
-def recrScan(root, rescan=True):
+def recrScan(root, rescan=False):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
 
     fields defined by RECORD_FIELDNAMES, rows list each file located in the
@@ -163,9 +163,10 @@ def recrScan(root, rescan=True):
             old_path = os.path.join(root, PREV_SCAN_RECORD)
             os.replace(dedup_record_path, old_path)
         else:
+            print(dedup_record_path, '\n\tfound! using previous results'
             return
     else:
-        print(dedup_record_path, 'doesn\'t exist! (new dir found)')
+        print(dedup_record_path, '\n\tdoesn\'t exist! (new dir found)')
 
     # build SCAN_RECORD in 'root'
     dir_list, file_list, sym_list = scanDir(root)
