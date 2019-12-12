@@ -14,6 +14,7 @@ PREV_SCAN_RECORD = '.deduplicator_record_prev'
 SCAN_SUMMARY = 'deduplicator_summary'
 PREV_SCAN_SUMMARY = 'deduplicator_summary_prev'
 RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
+max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
@@ -150,7 +151,7 @@ def mergeFileDict(root_dict, sub_dict):
         else:
             root_dict.update({key: paths})
 
-def recrScan(root, rescan=False):
+def recrScan(root, rescan=True):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
 
     fields defined by RECORD_FIELDNAMES, rows list each file located in the
@@ -196,6 +197,8 @@ def fileData(dir_entry):
     Assume dir_entry points to a file. Populate 'dups' field w/ empty list
     """
     file_stat = dir_entry.stat()
+    print('scanning {} at {}. size: {}'.format(dir_entry.name, dir_entry.path,
+        file_stat.st_size))
     return FileRecord(name=dir_entry.name, size=file_stat.st_size
             , csum=crc32(dir_entry.path)
             , m_time=file_stat.st_mtime, dups=[])
@@ -206,9 +209,10 @@ def crc32(filename):
     copied from CrouZ's answer: 
     stackoverflow.com/questions/1742866/compute-crc-of-file-in-python
     """
+    max_chunks = max_checksum_mb * 16
     fh = open(filename, 'rb')
     result = 0
-    while True:
+    for i in range(max_chunks):
         #read in 64 kb chunks
         s = fh.read(65536)
         if not s:
