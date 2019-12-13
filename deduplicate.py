@@ -24,6 +24,9 @@ def main():
             'the path to the directory to run the script in')
     parser.add_argument('-c', '--clean', action='store_true', help=
             'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
+    parser.add_argument('-r', '--rescan', action='store_true', help=
+            'rename any existing {} to {} and rebuild the file'.format(
+                SCAN_RECORD, PREV_SCAN_RECORD))
     args = parser.parse_args()
     path_arg = args.path
     if args.clean:
@@ -33,7 +36,10 @@ def main():
     else:
         # build a list of files in each directory
         print('building scan records')
-        recrScan(path_arg)
+        if args.rescan:
+            recrScan(path_arg, rescan=True)
+        else:
+            recrScan(path_arg)
         
         print('checking for duplicates')
         # add duplicates to each scan record
@@ -151,7 +157,7 @@ def mergeFileDict(root_dict, sub_dict):
         else:
             root_dict.update({key: paths})
 
-def recrScan(root, rescan=True):
+def recrScan(root, rescan=False):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
 
     fields defined by RECORD_FIELDNAMES, rows list each file located in the
@@ -175,6 +181,7 @@ def recrScan(root, rescan=True):
     for dir_entry in dir_list:
         recrScan(dir_entry.path, rescan=rescan)
     # 2) fill initial SCAN_RECORD for this folder
+    print('building record for {} [{} files]'.format(root, len(file_list)))
     fr_list = [fileData(dir_entry) for dir_entry in file_list]
     fr_list.sort(key=lambda x: x.size)
     listToFile(dedup_record_path, fr_list)
@@ -197,8 +204,8 @@ def fileData(dir_entry):
     Assume dir_entry points to a file. Populate 'dups' field w/ empty list
     """
     file_stat = dir_entry.stat()
-    print('scanning {} at {}. size: {}'.format(dir_entry.name, dir_entry.path,
-        file_stat.st_size))
+    #print('scanning {} at {}. size: {}'.format(dir_entry.name, dir_entry.path,
+    #    file_stat.st_size))
     return FileRecord(name=dir_entry.name, size=file_stat.st_size
             , csum=crc32(dir_entry.path)
             , m_time=file_stat.st_mtime, dups=[])
