@@ -20,23 +20,23 @@ FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 def main():
     parser = argparse.ArgumentParser(description=
             'Build lists of duplicate files.')
+    group = parser.add_mutually_exclusive_group()
     parser.add_argument('path', help=
             'the path to the directory to run the script in')
-    parser.add_argument('-r', '--rescan', action='store_true', help=
+    group.add_argument('-r', '--rescan', action='store_true', help=
             'rename any existing {} to {} and rebuild the file'.format(
                 SCAN_RECORD, PREV_SCAN_RECORD))
-    parser.add_argument('-l', '--lightrescan', action='store_true', help=
+    group.add_argument('-l', '--lightrescan', action='store_true', help=
         'rebuild {} but don\'t calculate file info if entry exists in record'.format(SCAN_RECORD))
-    parser.add_argument('-s', '--summary', action='store_true', help=
+    group.add_argument('-s', '--summary', action='store_true', help=
             'only read {} file at path and print condensed results'.format(
                 SCAN_SUMMARY))
-    parser.add_argument('-c', '--clean', action='store_true', help=
+    group.add_argument('-c', '--clean', action='store_true', help=
             'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
     args = parser.parse_args()
     path_arg = args.path
     if args.summary:
         print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
-        #clean directory
         dup_dict = readSummary(path_arg)
         print('summarizing list of duplicates')
         result_tuple = condenseDups(dup_dict)
