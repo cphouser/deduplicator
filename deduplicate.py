@@ -22,14 +22,27 @@ def main():
             'Build lists of duplicate files.')
     parser.add_argument('path', help=
             'the path to the directory to run the script in')
-    parser.add_argument('-c', '--clean', action='store_true', help=
-            'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
     parser.add_argument('-r', '--rescan', action='store_true', help=
             'rename any existing {} to {} and rebuild the file'.format(
                 SCAN_RECORD, PREV_SCAN_RECORD))
+    parser.add_argument('-l', '--lightrescan', action='store_true', help=
+        'rebuild {} but don\'t calculate file info if entry exists in record'.format(SCAN_RECORD))
+    parser.add_argument('-s', '--summary', action='store_true', help=
+            'only read {} file at path and print condensed results'.format(
+                SCAN_SUMMARY))
+    parser.add_argument('-c', '--clean', action='store_true', help=
+            'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
     args = parser.parse_args()
     path_arg = args.path
-    if args.clean:
+    if args.summary:
+        print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
+        #clean directory
+        dup_dict = readSummary(path_arg)
+        print('summarizing list of duplicates')
+        result_tuple = condenseDups(dup_dict)
+        printCondensed(*result_tuple)
+
+    elif args.clean:
         print('clean', path_arg)
         #clean directory
         removeScanFiles(path_arg)
@@ -38,6 +51,8 @@ def main():
         print('building scan records')
         if args.rescan:
             recrScan(path_arg, rescan=True)
+        elif args.lightrescan:
+            recrReScan(path_arg)
         else:
             recrScan(path_arg)
         
@@ -48,6 +63,68 @@ def main():
         print('writing summary file to ', os.path.join(path_arg, SCAN_SUMMARY))
         # write summary for found duplicates
         writeSummary(path_arg, file_dict)
+        
+def printCondensed(dup_dirs, local_dups, misc_dups):
+    print('duplicate directories')
+    print(*dup_dirs, sep='\n')
+    print('duplicates in single directories')
+    print(*local_dups, sep='\n')
+    print('duplicates not in single directories')
+    print(*misc_dups, sep='\n')
+
+def condenseDups(dup_dict):
+    local_duplicates = []
+    dup_dirs = []
+    misc_duplicates = []
+    for (csum, size), path_list in dup_dict.items():
+        dir_list = [os.path.dirname(path) for path in path_list]
+        if len(set(dir_list)) == 1:
+            #print('local duplicate',*path_list, sep='\n')
+            local_duplicates.append((csum, size, path_list))
+            continue
+        if len(set(dir_list)) < len(dir_list):
+            print('local duplicate',*path_list, sep='\n')
+            continue
+        part_of_dup_dir = False
+        for dir_path in dir_list:
+            if dir_path in [dup_dir[0] for dup_dir in dup_dirs]:
+                #print(dir_path, 'in duplicate dir list')
+                part_of_dup_dir = True
+                break
+        if part_of_dup_dir:
+            continue
+        file_dict_list = [(loadScanRecordAsDict(path), path) 
+                for path in set(dir_list)]
+        duplicate_dirs = compareFileDicts(file_dict_list)
+        if len(duplicate_dirs) == 0:
+            misc_duplicates.append((csum, size, path_list))
+        else:
+            dup_dirs.extend(duplicate_dirs)
+    return (dup_dirs, local_duplicates, misc_duplicates)
+    #print('duplicate directories')
+    #print(*dup_dirs, sep='\n')
+    #print('duplicates in single directories')
+    #print(*local_duplicates, sep='\n')
+    #print('duplicates not in single directories')
+    #print(*misc_duplicates, sep='\n')
+
+def compareFileDicts(dict_list):
+    dict_list.sort(key=lambda file_dict: len(file_dict[0]))
+    #print([len(file_dict[0]) for file_dict in dict_list])
+    file_dict, path = dict_list.pop(0)
+    dup_dirs = []
+    for other_dict, other_path in dict_list:
+        if subsetDict(file_dict, other_dict):
+            dup_dirs.append((path, other_path))
+    return dup_dirs
+
+def subsetDict(sub_dict, file_dict):
+    for key in sub_dict:
+        if key in file_dict:
+            continue
+        else:
+            return False
+    return True
 
 def removeScanFiles(path):
     dir_list, _, _ = scanDir(path)
@@ -61,6 +138,16 @@ def removeScanFiles(path):
         os.remove(os.path.join(path, PREV_SCAN_RECORD))
     except FileNotFoundError:
         print(PREV_SCAN_RECORD, 'not found in', path)
+
+def readSummary(s_path):
+    dup_dict = {}
+    with open(os.path.join(s_path,SCAN_SUMMARY), newline='') as sum_file:
+        yaml_obj = yaml.load_all(sum_file)
+        unique_list = next(yaml_obj)
+        for path, size, csum in unique_list:
+            mergeFileDict(dup_dict, {(csum, size): [path]})   
+        #print(*dup_dict.items(), sep='\n')
+    return dup_dict
 
 def writeSummary(s_path, file_dict):
     dup_list = []
@@ -83,7 +170,6 @@ def writeSummary(s_path, file_dict):
     print(yaml.dump_all((dup_list, unique_list)))
     #print('unique list')
     #print(*unique_list, sep='\n')
-
 
 def recrDupSearch(path):
     dir_list, _, _ = scanDir(path)
@@ -156,6 +242,56 @@ def mergeFileDict(root_dict, sub_dict):
             r_paths.extend(paths)
         else:
             root_dict.update({key: paths})
+
+def recrReScan(root):
+    """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
+
+    fields defined by RECORD_FIELDNAMES, rows list each file located in the
+    directory. dups field is not populated.
+    """
+    dir_list, file_list, sym_list = scanDir(root)
+    # build SCAN_RECORD in 'root'
+    # 1) make sure subdirectories have SCAN_RECORDs
+    for dir_entry in dir_list:
+        recrReScan(dir_entry.path)
+    # check for an existing SCAN_RECORD
+    dedup_record_path = os.path.join(root, SCAN_RECORD)
+    if os.path.isfile(dedup_record_path):
+        #load scan_record as fileRecord list
+        fr_list = []
+        sr_dict = loadScanRecordAsNameDict(root)
+        for dir_entry in file_list:
+            if dir_entry.name in sr_dict:
+                size, csum, mtime, _ = sr_dict[dir_entry.name]
+                fr_list.append(
+                        FileRecord(dir_entry.name, size, csum, mtime, []))
+            else:
+                print('no entry for', dir_entry.name)
+                fr_list.append(fileData(dir_entry))
+
+
+    else:
+        # 2) fill initial SCAN_RECORD for this folder
+        print('building record for {} [{} files]'.format(root, len(file_list)))
+        fr_list = [fileData(dir_entry) for dir_entry in file_list]
+    fr_list.sort(key=lambda x: x.size)
+    listToFile(dedup_record_path, fr_list)
+
+def loadScanRecordAsNameDict(path):
+    """load a SCAN_RECORD in directory 'path' and return entries as dict
+
+    exclude all empty files. Keys in dict are the names of each file
+    and values are the other entries in the row
+    """
+    record_path = os.path.join(path, SCAN_RECORD)
+    file_dict = {}
+    #empty_file_list = []
+    with open(record_path, newline='') as scanrecord_csv:
+        reader = csv.DictReader(scanrecord_csv, fieldnames=RECORD_FIELDNAMES)
+        for row in reader:
+            file_dict.update({row['name']: (int(row['size']), int(row['csum'])
+                , float(row['m_time']), row['dups'])})
+    return file_dict
 
 def recrScan(root, rescan=False):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
