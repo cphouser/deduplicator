@@ -23,6 +23,8 @@ def main():
     group = parser.add_mutually_exclusive_group()
     parser.add_argument('path', help=
             'the path to the directory to run the script in')
+    parser.add_argument('-e', '--emptysearch', action='store_true', help=
+            'report list of all empty directories at path')
     group.add_argument('-r', '--rescan', action='store_true', help=
             'rename any existing {} to {} and rebuild the file'.format(
                 SCAN_RECORD, PREV_SCAN_RECORD))
@@ -35,6 +37,10 @@ def main():
             'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
     args = parser.parse_args()
     path_arg = args.path
+    if args.emptysearch:
+        empty_dirs = emptyDirSearch(path_arg)
+        for dir_path in empty_dirs:
+            print(dir_path)
     if args.summary:
         print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
         dup_dict = readSummary(path_arg)
@@ -64,6 +70,22 @@ def main():
         # write summary for found duplicates
         writeSummary(path_arg, file_dict)
         
+def emptyDirSearch(path_arg):
+    dirs, files, symlinks = scanDir(path_arg)
+    empty_dirs = []
+    current_empty = True
+    for entry in symlinks:
+        print('symlink:', entry.name)
+    for entry in dirs:
+        result_list = emptyDirSearch(entry.path)
+        if len(result_list) == 0:
+            current_empty = False
+        empty_dirs.extend(result_list)
+    if len(files) != 0:
+        current_empty = False
+    if current_empty: return [path_arg]
+    else: return empty_dirs
+
 def printCondensed(dup_dirs, local_dups, misc_dups):
     print('duplicate directories')
     print(*dup_dirs, sep='\n')
