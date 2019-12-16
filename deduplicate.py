@@ -35,6 +35,10 @@ def main():
                 SCAN_SUMMARY))
     group.add_argument('-c', '--clean', action='store_true', help=
             'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
+    parser.add_argument('-d', '--delete'
+            , choices=['deeper', 'older', 'newer'], help=
+            'only read {} file at path and delete all duplicates \
+            according to the specified rule'.format(SCAN_SUMMARY))
     args = parser.parse_args()
     path_arg = args.path
     if args.emptysearch:
@@ -43,10 +47,16 @@ def main():
             print(dir_path)
     if args.summary:
         print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
+        #print(args.delete)
         dup_dict = readSummary(path_arg)
         print('summarizing list of duplicates')
-        result_tuple = condenseDups(dup_dict)
-        printCondensed(*result_tuple)
+        dup_dirs, local_dups, misc_dups = condenseDups(dup_dict)
+        printCondensed(dup_dirs, local_dups, misc_dups)
+        if args.delete == 'deeper':
+            print('deleting duplicates in different directories')
+            deleteTailFiles(misc_dups, subdirDepth)
+            print('deleting duplicates in the same directory')
+            deleteTailFiles(local_dups, subdirDepth)
 
     elif args.clean:
         print('clean', path_arg)
@@ -69,7 +79,32 @@ def main():
         print('writing summary file to ', os.path.join(path_arg, SCAN_SUMMARY))
         # write summary for found duplicates
         writeSummary(path_arg, file_dict)
-        
+
+def deleteTailFiles(dup_list, path_sort_func):
+    #print(*dup_list, sep='\n')
+    for csum, size, paths in dup_list:
+        paths.sort(key=lambda x: x.lower(), reverse=True)
+        paths.sort(key=path_sort_func, reverse=True)
+        remaining_copy = paths.pop()
+        #print('for file {}'.format(remaining_copy))
+        for path in paths:
+            try:
+                os.remove(path)
+            except FileNotFoundError:
+                print('deletion warning: could not find {}'.format(path))
+    #dup_list.sort(key=lambda x: x[2][0].lower())
+    #print('sorted entries', *dup_list, sep='\n')
+    
+    
+
+def subdirDepth(path):
+    def recrSplit(path):
+        remaining, _ = os.path.split(path)
+        if len(remaining) == 0:
+            return 0
+        else: return 1 + recrSplit(remaining)
+    return recrSplit(path)
+
 def emptyDirSearch(path_arg):
     dirs, files, symlinks = scanDir(path_arg)
     empty_dirs = []
@@ -105,8 +140,8 @@ def condenseDups(dup_dict):
             local_duplicates.append((csum, size, path_list))
             continue
         if len(set(dir_list)) < len(dir_list):
-            print('local duplicate',*path_list, sep='\n')
-            continue
+            print('mixed local duplicate',*path_list, sep='\n')
+            #continue
         part_of_dup_dir = False
         for dir_path in dir_list:
             if dir_path in [dup_dir[0] for dup_dir in dup_dirs]:
