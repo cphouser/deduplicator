@@ -18,67 +18,89 @@ max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
-    parser = argparse.ArgumentParser(description=
-            'Build lists of duplicate files.')
-    group = parser.add_mutually_exclusive_group()
-    parser.add_argument('path', help=
-            'the path to the directory to run the script in')
-    parser.add_argument('-e', '--emptysearch', action='store_true', help=
-            'report list of all empty directories at path')
-    group.add_argument('-r', '--rescan', action='store_true', help=
-            'rename any existing {} to {} and rebuild the file'.format(
-                SCAN_RECORD, PREV_SCAN_RECORD))
-    group.add_argument('-l', '--lightrescan', action='store_true', help=
-        'rebuild {} but don\'t calculate file info if entry exists in record'.format(SCAN_RECORD))
-    group.add_argument('-s', '--summary', action='store_true', help=
-            'only read {} file at path and print condensed results'.format(
-                SCAN_SUMMARY))
-    group.add_argument('-c', '--clean', action='store_true', help=
-            'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
-    parser.add_argument('-d', '--delete'
-            , choices=['deeper', 'older', 'newer'], help=
+    #parser = argparse.ArgumentParser(description=
+    #        'Build lists of duplicate files.')
+    #group = parser.add_mutually_exclusive_group()
+    #parser.add_argument('path', help=
+    #        'the path to the directory to run the script in')
+
+    buildparser = argparse.ArgumentParser(add_help=False)
+
+    buildgroup = buildparser.add_argument_group('build options')
+    buildgroup.add_argument('rescan', choices=['full','light','none'], 
+            default='none', help=
+            'options for building a new {}'.format(SCAN_SUMMARY))
+    #buildmode.add_argument('-l', '--lightrescan', action='store_true', help= 'rebuild {} but don\'t calculate file info if entry exists in record'.format(SCAN_RECORD))
+    listparser = argparse.ArgumentParser(add_help=False)
+    listgroup = listparser.add_argument_group('list/delete options')
+    listgroup.add_argument('-s', '--sort'
+            , choices=['depth', 'list'], help=
             'only read {} file at path and delete all duplicates \
             according to the specified rule'.format(SCAN_SUMMARY))
+
+    parser = argparse.ArgumentParser(parents=[buildparser,listparser]
+            , usage='%(prog)s build|list|delete|clean [options]')
+
+    parser.add_argument('mode', choices=['build','list','delete','clean'])
+    #subparsers = parser.add_subparsers(description='command to run')
+
+    #buildparser = subparsers.add_parser('build', help='build options')
+    #buildgroup = buildparser.add_argument_group('Build Options:')
+    #listparser = subparsers.add_parser('list', help='list from summary options')
+    #delparser = subparsers.add_parser('delete', help='delete from summary options')
+    parser.add_argument('-e', '--emptysearch', action='store_true', help=
+            'report list of all empty directories at path')
+    #group.add_argument('-s', '--summary', action='store_true', help=
+    #        'only read {} file at path and print condensed results'.format(
+    #            SCAN_SUMMARY))
+    #parser.add_argument('-c', '--clean', action='store_true', help=
+    #        'remove all {} and {} files'.format(SCAN_RECORD, PREV_SCAN_RECORD))
+    #listparser.add_argument('-s', '--sort'
+    #        , choices=['depth', 'list'], help=
+    #        'only read {} file at path and delete all duplicates \
+    #        according to the specified rule'.format(SCAN_SUMMARY))
     args = parser.parse_args()
     path_arg = args.path
-    if args.emptysearch:
-        empty_dirs = emptyDirSearch(path_arg)
-        for dir_path in empty_dirs:
-            print(dir_path)
-    if args.summary:
-        print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
-        #print(args.delete)
-        dup_dict = readSummary(path_arg)
-        print('summarizing list of duplicates')
-        dup_dirs, local_dups, misc_dups = condenseDups(dup_dict)
-        printCondensed(dup_dirs, local_dups, misc_dups)
-        if args.delete == 'deeper':
-            print('deleting duplicates in different directories')
-            deleteTailFiles(misc_dups, subdirDepth)
-            print('deleting duplicates in the same directory')
-            deleteTailFiles(local_dups, subdirDepth)
+    print(args)
 
-    elif args.clean:
-        print('clean', path_arg)
-        #clean directory
-        removeScanFiles(path_arg)
-    else:
-        # build a list of files in each directory
-        print('building scan records')
-        if args.rescan:
-            recrScan(path_arg, rescan=True)
-        elif args.lightrescan:
-            recrReScan(path_arg)
-        else:
-            recrScan(path_arg)
-        
-        print('checking for duplicates')
-        # add duplicates to each scan record
-        file_dict = recrDupSearch(path_arg)
+    #if args.emptysearch:
+    #    empty_dirs = emptyDirSearch(path_arg)
+    #    for dir_path in empty_dirs:
+    #        print(dir_path)
+    #if args.summary:
+    #    print('reading {} from {}'.format(SCAN_SUMMARY, path_arg))
+    #    #print(args.delete)
+    #    dup_dict = readSummary(path_arg)
+    #    print('summarizing list of duplicates')
+    #    dup_dirs, local_dups, misc_dups = condenseDups(dup_dict)
+    #    printCondensed(dup_dirs, local_dups, misc_dups)
+    #    if args.delete == 'deeper':
+    #        print('deleting duplicates in different directories')
+    #        deleteTailFiles(misc_dups, subdirDepth)
+    #        print('deleting duplicates in the same directory')
+    #        deleteTailFiles(local_dups, subdirDepth)
 
-        print('writing summary file to ', os.path.join(path_arg, SCAN_SUMMARY))
-        # write summary for found duplicates
-        writeSummary(path_arg, file_dict)
+    #elif args.clean:
+    #    print('clean', path_arg)
+    #    #clean directory
+    #    removeScanFiles(path_arg)
+    #else:
+    #    # build a list of files in each directory
+    #    print('building scan records')
+    #    if args.rescan:
+    #        recrScan(path_arg, rescan=True)
+    #    elif args.lightrescan:
+    #        recrReScan(path_arg)
+    #    else:
+    #        recrScan(path_arg)
+    #    
+    #    print('checking for duplicates')
+    #    # add duplicates to each scan record
+    #    file_dict = recrDupSearch(path_arg)
+
+    #    print('writing summary file to ', os.path.join(path_arg, SCAN_SUMMARY))
+    #    # write summary for found duplicates
+    #    writeSummary(path_arg, file_dict)
 
 def deleteTailFiles(dup_list, path_sort_func):
     #print(*dup_list, sep='\n')
