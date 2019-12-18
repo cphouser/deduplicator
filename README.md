@@ -1,5 +1,5 @@
 # Finding Duplicate Files in File Tree
-Working project to summarize infomation for filesystem cleaning.
+Working project to summarize infomation and provide macros for filesystem cleaning.
 
 ## Current Functionality
 Tested with Python 3.5.3
