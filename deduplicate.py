@@ -66,6 +66,9 @@ a primary location''')
     config = configparser.ConfigParser()
     config.read(os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE))
 
+    if args.emptysearch:
+        print('empty directories: [warning: false positives!]')
+        emptyDirSearch(path_arg)
     if args.mode == 'clean':
         print('clean', path_arg)
         removeScanFiles(path_arg)
@@ -272,7 +275,7 @@ def writeSummary(s_path, file_dict):
         yaml.dump_all((dup_list, unique_list), sum_file)
 
     #print('duplicate list')
-    print(yaml.dump_all((dup_list, unique_list)))
+    #print(yaml.dump_all((dup_list, unique_list)))
     #print('unique list')
     #print(*unique_list, sep='\n')
 
@@ -295,6 +298,11 @@ def recrDupSearch(path):
     return local_file_dict
 
 def resaveScanRecord(path, subdir_file_dict):
+    '''Open a SCAN_RECORD from the path and use the data while rewriting it.
+
+    For each entry in subdir_file_dict, create a FileRecord using previous
+    SCAN_RECORD data if it exists for the file.
+    '''
     record_path = os.path.join(path, SCAN_RECORD)
     fr_list = []
     with open(record_path, newline='') as scanrecord_csv:
@@ -352,7 +360,9 @@ def recrReScan(root):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
 
     fields defined by RECORD_FIELDNAMES, rows list each file located in the
-    directory. dups field is not populated.
+    directory. dups field is not populated. If a SCAN_RECORD is already
+    present in the directory, Use file data from that file in building the new
+    SCAN_RECORD
     """
     dir_list, file_list, sym_list = scanDir(root)
     # build SCAN_RECORD in 'root'
@@ -402,7 +412,8 @@ def recrScan(root, rescan=False):
     """store a csv SCAN_RECORD at path 'root' and in all of its subdirectories
 
     fields defined by RECORD_FIELDNAMES, rows list each file located in the
-    directory. dups field is not populated.
+    directory. dups field is not populated. If rescan is False, ignore paths
+    that alread have a SCAN_RECORD
     """
     # check for an existing SCAN_RECORD
     dedup_record_path = os.path.join(root, SCAN_RECORD)
