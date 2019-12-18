@@ -28,7 +28,7 @@ build options:
   {full,light,none}     options for building a new deduplicator_summary
 
 list/delete options:
-  -s {depth,list}, --sort {depth,list}
+  -s {depth,list,length}, --sort {depth,list,length}
                         Specify a rule for sorting the paths of a duplicate
                         file. Paths with lower values are considered the
                         file's primary location.
