@@ -36,6 +36,7 @@ list/delete options:
                                 path
                         list    1 if a file path contains directories listed
                                 in deduplicate.ini
+                        length  The length of the filename in each path
   -a, --all             consider all paths with the lowest sort value to be
                         a primary location
 ```
