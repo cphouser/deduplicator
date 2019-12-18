@@ -39,7 +39,7 @@ list/delete options:
   -a, --all             consider all paths with the lowest sort value to be
                         a primary location
 ```
-the file *deduplicate.ini* is checked for in the same directory as *:wdeduplicate.py*
+the file *deduplicate.ini* is checked for in the same directory as *deduplicate.py*
 ## Some Examples
 ```
 python3 deduplicate.py build <path>
