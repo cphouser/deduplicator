@@ -42,17 +42,21 @@ def main():
     listparser = argparse.ArgumentParser(add_help=False)
     listgroup = listparser.add_argument_group('list/delete options')
     listgroup.add_argument('-s', '--sort'
-            , choices=['depth', 'list'], help=
+            , choices=['depth', 'list', 'length'], help=
             '''Specify a rule for sorting the paths of a duplicate 
 file. Paths with lower values are considered the  
 file\'s primary location. 
 depth\tThe number of nested directories in a file 
 \tpath 
 list\t1 if a file path contains directories listed 
-\tin deduplicate.ini''')
+\tin deduplicate.ini
+length\tThe length of the filename in each path''')
     listgroup.add_argument('-a', '--all', action='store_true', help=
             '''consider all paths with the lowest sort value to be
 a primary location''')
+    listgroup.add_argument('-p', '--printall', action='store_true', help=
+            '''when listing duplicates, print entries where all 
+copies are primary''')
 
     parser = argparse.ArgumentParser(parents=[modeparser, buildparser
         , listparser]
@@ -106,10 +110,14 @@ a primary location''')
                 dir_list = config['sorting']['duplicate directories'].split(
                         '\n')
                 print(dir_list)
-            printCondensed(dup_dirs, file_dups, d_flag, args.all
+            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
                     , lambda path: pathIncludes(dir_list, path))
         elif args.sort == 'depth':
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, subdirDepth)
+            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+                    , subdirDepth)
+        elif args.sort == 'length':
+            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+                    , pathFileLen)
 
 def deleteTailFiles(dup_list, path_sort_func):
     #print(*dup_list, sep='\n')
@@ -126,7 +134,7 @@ def deleteTailFiles(dup_list, path_sort_func):
     #dup_list.sort(key=lambda x: x[2][0].lower())
     #print('sorted entries', *dup_list, sep='\n')
     
-def printCondensed(dup_dirs, file_dups, d_flag, a_flag, path_sort_func):
+def printCondensed(dup_dirs, file_dups, d_flag, a_flag, p_flag, path_sort_func):
     print('duplicate directories')
     print(*dup_dirs, sep='\n')
 
@@ -134,13 +142,15 @@ def printCondensed(dup_dirs, file_dups, d_flag, a_flag, path_sort_func):
         paths.sort(key=lambda x: x.lower(), reverse=True)
         paths.sort(key=path_sort_func, reverse=True)
         prim_paths = [paths.pop()]
-        if a_flag:
+        if a_flag and not all([path_sort_func(path) == 1 for path in paths]):
             while len(paths) > 0 and (path_sort_func(prim_paths[0]) 
                     == path_sort_func(paths[-1])):
                 prim_paths.append(paths.pop())
-        print('primary copies:',*prim_paths, sep='\n\t')
-        print('duplicate copies:' + ('[DELETED]' if d_flag else '')
-                , *paths, sep='\n\t')
+        if len(paths) > 0 or p_flag:
+            print('primary copies:',*prim_paths, sep='\n\t')
+        if len(paths) > 0:
+            print('duplicate copies:' + ('[DELETED]' if d_flag else '')
+                    , *paths, sep='\n\t')
         if d_flag:
             for path in paths:
                 try:
@@ -158,6 +168,9 @@ def pathIncludes(path_list, path):
         else: return recrSplit(path_list, remaining)
     #print(recrSplit(path_list, path))
     return recrSplit(path_list, path)
+
+def pathFileLen(path):
+    return len(os.path.basename(path))
 
 def subdirDepth(path):
     def recrSplit(path):
@@ -193,8 +206,8 @@ def condenseDups(dup_dict):
             #print('local duplicate',*path_list, sep='\n')
             local_duplicates.append((csum, size, path_list))
             continue
-        if len(set(dir_list)) < len(dir_list):
-            print('mixed local duplicate',*path_list, sep='\n')
+        #if len(set(dir_list)) < len(dir_list):
+        #    print('mixed local duplicate',*path_list, sep='\n')
             #continue
 
         part_of_dup_dir = False
@@ -213,6 +226,7 @@ def condenseDups(dup_dict):
             misc_duplicates.append((csum, size, path_list))
         else:
             dup_dirs.extend(duplicate_dirs)
+            misc_duplicates.append((csum, size, path_list))
     return (dup_dirs, local_duplicates + misc_duplicates)
 
 def compareFileDicts(dict_list):
