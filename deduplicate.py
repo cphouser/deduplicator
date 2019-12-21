@@ -62,17 +62,17 @@ copies are primary''')
         , listparser]
             #, usage='%(prog)s build|list|delete|clean [options]'
             , formatter_class=argparse.RawTextHelpFormatter)
-    parser.add_argument('-e', '--emptysearch', action='store_true', help=
-            'report list of all empty directories at path')
+    #parser.add_argument('-e', '--emptysearch', action='store_true', help=
+    #        'report list of all empty directories at path')
     args = parser.parse_args()
     path_arg = args.path
     print(args)
     config = configparser.ConfigParser()
     config.read(os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE))
 
-    if args.emptysearch:
-        print('empty directories: [warning: false positives!]')
-        emptyDirSearch(path_arg)
+    #if args.emptysearch:
+    #    print('empty directories: [warning: false positives!]')
+    #    emptyDirSearch(path_arg)
     if args.mode == 'clean':
         print('clean', path_arg)
         removeScanFiles(path_arg)
@@ -136,6 +136,7 @@ def deleteTailFiles(dup_list, path_sort_func):
     
 def printCondensed(dup_dirs, file_dups, d_flag, a_flag, p_flag, path_sort_func):
     print('duplicate directories')
+    dup_dirs.sort(key=lambda x: x[0].lower())
     print(*dup_dirs, sep='\n')
 
     for csum, size, paths in file_dups:
@@ -180,21 +181,6 @@ def subdirDepth(path):
         else: return 1 + recrSplit(remaining)
     return recrSplit(path)
 
-def emptyDirSearch(path_arg):
-    dirs, files, symlinks = scanDir(path_arg)
-    empty_dirs = []
-    current_empty = True
-    for entry in symlinks:
-        print('symlink:', entry.name)
-    for entry in dirs:
-        result_list = emptyDirSearch(entry.path)
-        if len(result_list) == 0:
-            current_empty = False
-        empty_dirs.extend(result_list)
-    if len(files) != 0:
-        current_empty = False
-    if current_empty: return [path_arg]
-    else: return empty_dirs
 
 def condenseDups(dup_dict):
     local_duplicates = []
