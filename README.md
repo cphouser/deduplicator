@@ -4,7 +4,7 @@ Working project to summarize infomation and provide macros for filesystem cleani
 ## Current Functionality
 Tested with Python 3.5.3
 ```
-usage: deduplicate.py [-h] [-s {depth,list,length}] [-a] [-p]
+usage: deduplicate.py [-h] [-s {depth,list,length,date}] [-a] [-p]
                       {build,list,delete,clean} path [{full,light,none}]
 
 optional arguments:
@@ -27,7 +27,7 @@ build options:
   {full,light,none}     options for building a new deduplicator_summary
 
 list/delete options:
-  -s {depth,list,length}, --sort {depth,list,length}
+  -s {depth,list,length,date}, --sort {depth,list,length,date}
                         Specify a rule for sorting the paths of a duplicate
                         file. Paths with lower values are considered the
                         file's primary location.
@@ -36,6 +36,7 @@ list/delete options:
                         list    1 if a file path contains directories listed
                                 in deduplicate.ini
                         length  The length of the filename in each path
+                        date    The last modified value of the file
   -a, --all             consider all paths with the lowest sort value to be
                         a primary location
   -p, --printall        when listing duplicates, print entries where all
