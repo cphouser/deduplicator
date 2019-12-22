@@ -42,7 +42,7 @@ def main():
     listparser = argparse.ArgumentParser(add_help=False)
     listgroup = listparser.add_argument_group('list/delete options')
     listgroup.add_argument('-s', '--sort'
-            , choices=['depth', 'list', 'length'], help=
+            , choices=['depth', 'list', 'length', 'date'], help=
             '''Specify a rule for sorting the paths of a duplicate 
 file. Paths with lower values are considered the  
 file\'s primary location. 
@@ -50,7 +50,8 @@ depth\tThe number of nested directories in a file
 \tpath 
 list\t1 if a file path contains directories listed 
 \tin deduplicate.ini
-length\tThe length of the filename in each path''')
+length\tThe length of the filename in each path
+date\tThe last modified value of the file''')
     listgroup.add_argument('-a', '--all', action='store_true', help=
             '''consider all paths with the lowest sort value to be
 a primary location''')
@@ -118,6 +119,9 @@ copies are primary''')
         elif args.sort == 'length':
             printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
                     , pathFileLen)
+        elif args.sort == 'date':
+            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+                    , fileLastModified)
 
 def deleteTailFiles(dup_list, path_sort_func):
     #print(*dup_list, sep='\n')
@@ -173,6 +177,9 @@ def pathIncludes(path_list, path):
 def pathFileLen(path):
     return len(os.path.basename(path))
 
+def fileLastModified(path):
+    return os.stat(path).st_mtime
+
 def subdirDepth(path):
     def recrSplit(path):
         remaining, _ = os.path.split(path)
@@ -180,7 +187,6 @@ def subdirDepth(path):
             return 0
         else: return 1 + recrSplit(remaining)
     return recrSplit(path)
-
 
 def condenseDups(dup_dict):
     local_duplicates = []
