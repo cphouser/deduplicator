@@ -103,8 +103,12 @@ copies are primary''')
             print('keep all minimum files')
 
         dup_dict = readSummary(path_arg)
+        print('{} unique files in {} paths'.format(len(dup_dict),
+            sum([len(paths) for paths in dup_dict.values()])))
         print('summarizing list of duplicate directories')
         dup_dirs, file_dups = condenseDups(dup_dict)
+        #print('{} unique files\tin {} paths'.format(len(file_dups),
+        #    sum([len(paths) for _, _, paths in file_dups])))
 
         if args.sort == 'list':
             if 'sorting' in config:
@@ -209,6 +213,7 @@ def condenseDups(dup_dict):
                 part_of_dup_dir = True
                 break
         if part_of_dup_dir:
+            misc_duplicates.append((csum, size, path_list))
             continue
 
         file_dict_list = [(loadScanRecordAsDict(path), path) 
