@@ -63,7 +63,7 @@ python3 deduplicate.py clean path
 ```
 Deletes the *.deduplicator_record* and *.deduplicator_record_prev* files from directory *path* (if they exist) and from each nested subdirectory.
 
-##Finding and Deleting Empty Folders
+## Finding and Deleting Empty Folders
 ```
 usage: deemptydir.py [-h] [-d] path
 
