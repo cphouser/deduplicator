@@ -261,8 +261,9 @@ def removeScanFiles(path):
 def readSummary(s_path):
     dup_dict = {}
     with open(os.path.join(s_path,SCAN_SUMMARY), newline='') as sum_file:
-        yaml_obj = yaml.load_all(sum_file)
-        unique_list = next(yaml_obj)
+        #yaml_obj = yaml.load_all(sum_file)
+        #unique_list = next(yaml_obj)
+        unique_list = yaml.load(sum_file)
         for path, size, csum in unique_list:
             mergeFileDict(dup_dict, {(csum, size): [path]})   
         #print(*dup_dict.items(), sep='\n')
@@ -270,20 +271,20 @@ def readSummary(s_path):
 
 def writeSummary(s_path, file_dict):
     dup_list = []
-    unique_list = []
+    #unique_list = []
     for (chksm, size), dups in file_dict.items():
         if len(dups) > 1:
             for path in dups:
                 #name = os.path.basename(path)
                 dup_list.append((path, size, chksm))
-        else:
+        #else:
             #name = os.path.basename(dups[0])
-            unique_list.append((dups[0], size, chksm))
+            #unique_list.append((dups[0], size, chksm))
     
     dup_list.sort(key=itemgetter(1), reverse=True)
-    unique_list.sort(key=itemgetter(1), reverse=True)
+    #unique_list.sort(key=itemgetter(1), reverse=True)
     with open(os.path.join(s_path,SCAN_SUMMARY), 'w', newline='') as sum_file:
-        yaml.dump_all((dup_list, unique_list), sum_file)
+        yaml.dump(dup_list, sum_file)
 
     #print('duplicate list')
     #print(yaml.dump_all((dup_list, unique_list)))
