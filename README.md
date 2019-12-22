@@ -4,12 +4,11 @@ Working project to summarize infomation and provide macros for filesystem cleani
 ## Current Functionality
 Tested with Python 3.5.3
 ```
-usage: deduplicate.py [-h] [-s {depth,list,length}] [-a] [-p] [-e]
+usage: deduplicate.py [-h] [-s {depth,list,length}] [-a] [-p]
                       {build,list,delete,clean} path [{full,light,none}]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -e, --emptysearch     report list of all empty directories at path
 
 general:
   {build,list,delete,clean}
@@ -64,3 +63,16 @@ python3 deduplicate.py clean path
 ```
 Deletes the *.deduplicator_record* and *.deduplicator_record_prev* files from directory *path* (if they exist) and from each nested subdirectory.
 
+##Finding and Deleting Empty Folders
+```
+usage: deemptydir.py [-h] [-d] path
+
+Find all empty directories (paths with no files after them)
+
+positional arguments:
+  path        Path to search after
+
+optional arguments:
+  -h, --help  show this help message and exit
+  -d          Delete all empty directories
+```
