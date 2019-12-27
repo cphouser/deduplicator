@@ -19,6 +19,29 @@ RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
+class DupSummary:
+    def __init__(self, path, p_flag=False, a_flag=False, d_flag=False):
+        self.path = path
+        self.dup_list = self.readSummary() 
+        self.print_all = p_flag
+        self.include_all = a_flag
+        self.delete = d_flag
+
+    def sumSize(self):
+        return ('{} unique files in {} paths'.format(len(self.dup_list)
+            , sum([len(paths) for _, _, paths in self.dup_list])))
+
+    def readSummary(self):
+        dup_dict = {}
+        with open(os.path.join(self.path,SCAN_SUMMARY), newline='') as s_file:
+            #yaml_obj = yaml.load_all(sum_file)
+            #unique_list = next(yaml_obj)
+            unique_list = yaml.load(s_file)
+            for path, size, csum in unique_list:
+                mergeFileDict(dup_dict, {(csum, size): [path]})   
+            #print(*dup_dict.items(), sep='\n')
+        return [(c, s, paths) for (c, s), paths in dup_dict.items()]
+
 def main():
     args = parseArgs()
     path_arg = args.path
@@ -60,11 +83,13 @@ def main():
         if args.all == True:
             print('keep all minimum files')
 
-        dup_dict = readSummary(path_arg)
-        print('{} unique files in {} paths'.format(len(dup_dict),
-            sum([len(paths) for paths in dup_dict.values()])))
-        print('summarizing list of duplicate directories')
-        dup_dirs, file_dups = condenseDups(dup_dict)
+        dup_summary = DupSummary(path_arg, args.printall, args.all, d_flag)
+        print(dup_summary.sumSize())
+        #dup_dict = readSummary(path_arg)
+        #print('{} unique files in {} paths'.format(len(dup_dict),
+        #    sum([len(paths) for paths in dup_dict.values()])))
+        #print('summarizing list of duplicate directories')
+        #dup_dirs, file_dups = condenseDups(dup_dict)
         #print('{} unique files\tin {} paths'.format(len(file_dups),
         #    sum([len(paths) for _, _, paths in file_dups])))
 
@@ -73,23 +98,24 @@ def main():
                 dir_list = config['sorting']['primary directories'].split(
                         '\n')
                 print(dir_list)
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+            printCondensed(dup_summary.dup_list, d_flag, args.all
+                    , args.printall
                     , lambda path: pathIncludes0(dir_list, path))
-        if args.sort == 'dlist':
+        elif args.sort == 'dlist':
             if 'sorting' in config:
                 dir_list = config['sorting']['duplicate directories'].split(
                         '\n')
                 print(dir_list)
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
                     , lambda path: pathIncludes1(dir_list, path))
         elif args.sort == 'depth':
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
                     , subdirDepth)
         elif args.sort == 'length':
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
                     , pathFileLen)
         elif args.sort == 'date':
-            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
                     , fileLastModified)
 
 def parseArgs():
@@ -154,10 +180,10 @@ def deleteTailFiles(dup_list, path_sort_func):
     #dup_list.sort(key=lambda x: x[2][0].lower())
     #print('sorted entries', *dup_list, sep='\n')
     
-def printCondensed(dup_dirs, file_dups, d_flag, a_flag, p_flag, path_sort_func):
-    print('duplicate directories')
-    dup_dirs.sort(key=lambda x: x[0].lower())
-    print(*dup_dirs, sep='\n')
+def printCondensed(file_dups, d_flag, a_flag, p_flag, path_sort_func):
+    #print('duplicate directories')
+    #dup_dirs.sort(key=lambda x: x[0].lower())
+    #print(*dup_dirs, sep='\n')
 
     for csum, size, paths in file_dups:
         paths.sort(key=lambda x: x.lower(), reverse=True)
@@ -283,16 +309,6 @@ def removeScanFiles(path):
     except FileNotFoundError:
         print(PREV_SCAN_RECORD, 'not found in', path)
 
-def readSummary(s_path):
-    dup_dict = {}
-    with open(os.path.join(s_path,SCAN_SUMMARY), newline='') as sum_file:
-        #yaml_obj = yaml.load_all(sum_file)
-        #unique_list = next(yaml_obj)
-        unique_list = yaml.load(sum_file)
-        for path, size, csum in unique_list:
-            mergeFileDict(dup_dict, {(csum, size): [path]})   
-        #print(*dup_dict.items(), sep='\n')
-    return dup_dict
 
 def writeSummary(s_path, file_dict):
     dup_list = []
