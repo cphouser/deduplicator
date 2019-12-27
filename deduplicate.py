@@ -20,60 +20,18 @@ max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
 def main():
-    modeparser = argparse.ArgumentParser(add_help=False)
-    modegroup = modeparser.add_argument_group('general')
-    modegroup.add_argument('mode', choices=['build','list','delete','clean']
-            , help='''Mode to operate the script in \
-                    \nbuild\tWrite a {} file \n\tidentifying duplicate files \
-                    \nlist\tSort and list the results in the \n\t{} file \
-                    \ndelete\tSort and delete duplicates in the \n\t{} file \
-                    \nclean\tRemove all {} and \n\t{} files'''.format(
-                        SCAN_SUMMARY, SCAN_SUMMARY, SCAN_SUMMARY
-                        , SCAN_RECORD, PREV_SCAN_RECORD))
-                    
-    modegroup.add_argument('path', help='Directory to find duplicates within')
-
-    buildparser = argparse.ArgumentParser(add_help=False)
-    buildgroup = buildparser.add_argument_group('build options')
-    buildgroup.add_argument('rescan', choices=['full','light','none']
-            , default='none', nargs='?', help=
-            'options for building a new {}'.format(SCAN_SUMMARY))
-
-    listparser = argparse.ArgumentParser(add_help=False)
-    listgroup = listparser.add_argument_group('list/delete options')
-    listgroup.add_argument('-s', '--sort'
-            , choices=['depth', 'list', 'length', 'date'], help=
-            '''Specify a rule for sorting the paths of a duplicate 
-file. Paths with lower values are considered the  
-file\'s primary location. 
-depth\tThe number of nested directories in a file 
-\tpath 
-list\t1 if a file path contains directories listed 
-\tin deduplicate.ini
-length\tThe length of the filename in each path
-date\tThe last modified value of the file''')
-    listgroup.add_argument('-a', '--all', action='store_true', help=
-            '''consider all paths with the lowest sort value to be
-a primary location''')
-    listgroup.add_argument('-p', '--printall', action='store_true', help=
-            '''when listing duplicates, print entries where all 
-copies are primary''')
-
-    parser = argparse.ArgumentParser(parents=[modeparser, buildparser
-        , listparser]
-            #, usage='%(prog)s build|list|delete|clean [options]'
-            , formatter_class=argparse.RawTextHelpFormatter)
-    #parser.add_argument('-e', '--emptysearch', action='store_true', help=
-    #        'report list of all empty directories at path')
-    args = parser.parse_args()
+    args = parseArgs()
     path_arg = args.path
-    print(args)
+    #print(args)
     config = configparser.ConfigParser()
-    config.read(os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE))
+    if os.path.isfile(os.path.join(path_arg, CONFIG_FILE)):
+        print('reading oonfig file at ', os.path.join(path_arg, CONFIG_FILE))
+        config.read(os.path.join(path_arg, CONFIG_FILE))
+    else:
+        print('reading oonfig file at '
+                , os.path.join(os.path.dirname(sys.argv[0]), CONFIG_FILE))
+        config.read(os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE))
 
-    #if args.emptysearch:
-    #    print('empty directories: [warning: false positives!]')
-    #    emptyDirSearch(path_arg)
     if args.mode == 'clean':
         print('clean', path_arg)
         removeScanFiles(path_arg)
@@ -110,13 +68,20 @@ copies are primary''')
         #print('{} unique files\tin {} paths'.format(len(file_dups),
         #    sum([len(paths) for _, _, paths in file_dups])))
 
-        if args.sort == 'list':
+        if args.sort == 'plist':
+            if 'sorting' in config:
+                dir_list = config['sorting']['primary directories'].split(
+                        '\n')
+                print(dir_list)
+            printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
+                    , lambda path: pathIncludes0(dir_list, path))
+        if args.sort == 'dlist':
             if 'sorting' in config:
                 dir_list = config['sorting']['duplicate directories'].split(
                         '\n')
                 print(dir_list)
             printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
-                    , lambda path: pathIncludes(dir_list, path))
+                    , lambda path: pathIncludes1(dir_list, path))
         elif args.sort == 'depth':
             printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
                     , subdirDepth)
@@ -126,6 +91,53 @@ copies are primary''')
         elif args.sort == 'date':
             printCondensed(dup_dirs, file_dups, d_flag, args.all, args.printall
                     , fileLastModified)
+
+def parseArgs():
+    modeparser = argparse.ArgumentParser(add_help=False)
+    modegroup = modeparser.add_argument_group('general')
+    modegroup.add_argument('mode', choices=['build','list','delete','clean']
+            , help='''Mode to operate the script in \
+                    \nbuild\tWrite a {} file \n\tidentifying duplicate files \
+                    \nlist\tSort and list the results in the \n\t{} file \
+                    \ndelete\tSort and delete duplicates in the \n\t{} file \
+                    \nclean\tRemove all {} and \n\t{} files'''.format(
+                        SCAN_SUMMARY, SCAN_SUMMARY, SCAN_SUMMARY
+                        , SCAN_RECORD, PREV_SCAN_RECORD))
+                    
+    modegroup.add_argument('path', help='Directory to find duplicates within')
+
+    buildparser = argparse.ArgumentParser(add_help=False)
+    buildgroup = buildparser.add_argument_group('build options')
+    buildgroup.add_argument('rescan', choices=['full','light','none']
+            , default='none', nargs='?', help=
+            'options for building a new {}'.format(SCAN_SUMMARY))
+
+    listparser = argparse.ArgumentParser(add_help=False)
+    listgroup = listparser.add_argument_group('list/delete options')
+    listgroup.add_argument('-s', '--sort'
+            , choices=['depth', 'dlist', 'plist', 'length', 'date'], help=
+            '''Specify a rule for sorting the paths of a duplicate 
+file. Paths with lower values are considered the  
+file\'s primary location. 
+depth\tThe number of nested directories in a file path 
+dlist\t1 if a file path contains directories listed in
+\t"duplicate directories" deduplicate.ini section
+plist\t0 if a file path contains directories listed in
+\t"primary directories" deduplicate.ini section
+length\tThe length of the filename in each path
+date\tThe last modified value of the file''')
+    listgroup.add_argument('-a', '--all', action='store_true', help=
+            '''consider all paths with the lowest sort value to be a
+primary location''')
+    listgroup.add_argument('-p', '--printall', action='store_true', help=
+            '''when listing duplicates, print entries where all copies
+are primary''')
+
+    parser = argparse.ArgumentParser(parents=[modeparser, buildparser
+        , listparser]
+            #, usage='%(prog)s build|list|delete|clean [options]'
+            , formatter_class=argparse.RawTextHelpFormatter)
+    return parser.parse_args()
 
 def deleteTailFiles(dup_list, path_sort_func):
     #print(*dup_list, sep='\n')
@@ -156,10 +168,12 @@ def printCondensed(dup_dirs, file_dups, d_flag, a_flag, p_flag, path_sort_func):
                     == path_sort_func(paths[-1])):
                 prim_paths.append(paths.pop())
         if len(paths) > 0 or p_flag:
-            print('primary copies:',*prim_paths, sep='\n\t')
+            print(*['prim: ' + path for path in prim_paths], sep='\n')
         if len(paths) > 0:
-            print('duplicate copies:' + ('[DELETED]' if d_flag else '')
-                    , *paths, sep='\n\t')
+            print(*['dupl: ' + path + ('[DELETED]' if d_flag else '') for path
+                    in paths], sep='\n')
+        if len(paths) > 0 or p_flag:
+            print('--')
         if d_flag:
             for path in paths:
                 try:
@@ -167,13 +181,24 @@ def printCondensed(dup_dirs, file_dups, d_flag, a_flag, p_flag, path_sort_func):
                 except FileNotFoundError:
                     print('deletion warning: could not find {}'.format(path))
 
-def pathIncludes(path_list, path):
+def pathIncludes1(path_list, path):
     def recrSplit(path_list, path):
         remaining, dir_name = os.path.split(path)
         if dir_name in path_list:
             return 1
         if len(remaining) == 0:
             return 0
+        else: return recrSplit(path_list, remaining)
+    #print(recrSplit(path_list, path))
+    return recrSplit(path_list, path)
+
+def pathIncludes0(path_list, path):
+    def recrSplit(path_list, path):
+        remaining, dir_name = os.path.split(path)
+        if dir_name in path_list:
+            return 0
+        if len(remaining) == 0:
+            return 1
         else: return recrSplit(path_list, remaining)
     #print(recrSplit(path_list, path))
     return recrSplit(path_list, path)
