@@ -8,7 +8,7 @@ from pathlib import Path
 from operator import itemgetter
 import yaml
 import argparse
-import configparser
+import dupfilters as df
 
 SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
@@ -19,10 +19,13 @@ RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 
-class DupSummary:
-    def __init__(self, path, p_flag=False, a_flag=False, d_flag=False):
+class DupSummary():
+    def __init__(self, path, cfg_path, p_flag=False, a_flag=False, d_flag=False):
         self.path = path
         self.dup_list = self.readSummary() 
+        self.filter_result = []
+        self.dup_dirs = []
+        self.dup_filters = df.DupFilters(cfg_path)
         self.print_all = p_flag
         self.include_all = a_flag
         self.delete = d_flag
@@ -42,18 +45,69 @@ class DupSummary:
             #print(*dup_dict.items(), sep='\n')
         return [(c, s, paths) for (c, s), paths in dup_dict.items()]
 
+    def sortDups(self, sort_func_name):
+        if sort_func_name is None: return
+        path_sort_func = self.dup_filters.sortBy(sort_func_name)
+
+        for csum, size, path_list in self.dup_list:
+            paths = sorted(path_list, key=lambda x: x.lower(), reverse=True)
+            paths.sort(key=path_sort_func, reverse=True)
+            prim_paths = [paths.pop()]
+            if self.include_all and \
+                    not all([path_sort_func(path) == 1 for path in paths]):
+                while len(paths) > 0 and (path_sort_func(prim_paths[0]) 
+                        == path_sort_func(paths[-1])):
+                    prim_paths.append(paths.pop())
+            self.filter_result.append((prim_paths, paths))
+        self.filter_result.sort(key=lambda x: x[0][0].lower())
+
+    def printSortResult(self):
+        for prim_paths, paths in self.filter_result:
+            if len(paths) > 0 or self.print_all:
+                print(*['prim: ' + path for path in prim_paths], sep='\n')
+            if len(paths) > 0:
+                print(*['dupl: ' + path + ('[DELETED]' if self.delete else '') 
+                    for path in paths], sep='\n')
+            if len(paths) > 0 or self.print_all:
+                print('--')
+            if self.delete:
+                for path in paths:
+                    try:
+                        os.remove(path)
+                    except FileNotFoundError:
+                        print('deletion warning: could not find {}'.format(path))
+
+    def findDupDirs(self):
+        for _, _, path_list in dup_list:
+            dir_list = [os.path.dirname(path) for path in path_list]
+            if len(set(dir_list)) == 1:
+                continue
+
+            part_of_dup_dir = False
+            for dir_path in dir_list:
+                if dir_path in [dup_dir[0] for dup_dir in self.dup_dirs]:
+                    #print(dir_path, 'in duplicate dir list')
+                    part_of_dup_dir = True
+                    break
+            if part_of_dup_dir:
+                continue
+
+            file_dict_list = [(loadScanRecordAsDict(path), path) 
+                    for path in set(dir_list)]
+            duplicate_dirs = compareFileDicts(file_dict_list)
+            if len(duplicate_dirs) > 0:
+                self.dup_dirs.extend(duplicate_dirs)
+
 def main():
     args = parseArgs()
     path_arg = args.path
-    #print(args)
-    config = configparser.ConfigParser()
     if os.path.isfile(os.path.join(path_arg, CONFIG_FILE)):
         print('reading oonfig file at ', os.path.join(path_arg, CONFIG_FILE))
-        config.read(os.path.join(path_arg, CONFIG_FILE))
+        config_path = os.path.join(path_arg, CONFIG_FILE)
     else:
         print('reading oonfig file at '
                 , os.path.join(os.path.dirname(sys.argv[0]), CONFIG_FILE))
-        config.read(os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE))
+        config_path = os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE)
 
     if args.mode == 'clean':
         print('clean', path_arg)
@@ -83,40 +137,11 @@ def main():
         if args.all == True:
             print('keep all minimum files')
 
-        dup_summary = DupSummary(path_arg, args.printall, args.all, d_flag)
+        dup_summary = DupSummary(path_arg, config_path
+                , args.printall, args.all, d_flag)
         print(dup_summary.sumSize())
-        #dup_dict = readSummary(path_arg)
-        #print('{} unique files in {} paths'.format(len(dup_dict),
-        #    sum([len(paths) for paths in dup_dict.values()])))
-        #print('summarizing list of duplicate directories')
-        #dup_dirs, file_dups = condenseDups(dup_dict)
-        #print('{} unique files\tin {} paths'.format(len(file_dups),
-        #    sum([len(paths) for _, _, paths in file_dups])))
-
-        if args.sort == 'plist':
-            if 'sorting' in config:
-                dir_list = config['sorting']['primary directories'].split(
-                        '\n')
-                print(dir_list)
-            printCondensed(dup_summary.dup_list, d_flag, args.all
-                    , args.printall
-                    , lambda path: pathIncludes0(dir_list, path))
-        elif args.sort == 'dlist':
-            if 'sorting' in config:
-                dir_list = config['sorting']['duplicate directories'].split(
-                        '\n')
-                print(dir_list)
-            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
-                    , lambda path: pathIncludes1(dir_list, path))
-        elif args.sort == 'depth':
-            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
-                    , subdirDepth)
-        elif args.sort == 'length':
-            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
-                    , pathFileLen)
-        elif args.sort == 'date':
-            printCondensed(dup_summary.dup_list, d_flag, args.all, args.printall
-                    , fileLastModified)
+        dup_summary.sortDups(args.sort)
+        dup_summary.printSortResult()
 
 def parseArgs():
     modeparser = argparse.ArgumentParser(add_help=False)
@@ -140,7 +165,7 @@ def parseArgs():
 
     listparser = argparse.ArgumentParser(add_help=False)
     listgroup = listparser.add_argument_group('list/delete options')
-    listgroup.add_argument('-s', '--sort'
+    listgroup.add_argument('sort', nargs='?'
             , choices=['depth', 'dlist', 'plist', 'length', 'date'], help=
             '''Specify a rule for sorting the paths of a duplicate 
 file. Paths with lower values are considered the  
@@ -179,103 +204,6 @@ def deleteTailFiles(dup_list, path_sort_func):
                 print('deletion warning: could not find {}'.format(path))
     #dup_list.sort(key=lambda x: x[2][0].lower())
     #print('sorted entries', *dup_list, sep='\n')
-    
-def printCondensed(file_dups, d_flag, a_flag, p_flag, path_sort_func):
-    #print('duplicate directories')
-    #dup_dirs.sort(key=lambda x: x[0].lower())
-    #print(*dup_dirs, sep='\n')
-
-    for csum, size, paths in file_dups:
-        paths.sort(key=lambda x: x.lower(), reverse=True)
-        paths.sort(key=path_sort_func, reverse=True)
-        prim_paths = [paths.pop()]
-        if a_flag and not all([path_sort_func(path) == 1 for path in paths]):
-            while len(paths) > 0 and (path_sort_func(prim_paths[0]) 
-                    == path_sort_func(paths[-1])):
-                prim_paths.append(paths.pop())
-        if len(paths) > 0 or p_flag:
-            print(*['prim: ' + path for path in prim_paths], sep='\n')
-        if len(paths) > 0:
-            print(*['dupl: ' + path + ('[DELETED]' if d_flag else '') for path
-                    in paths], sep='\n')
-        if len(paths) > 0 or p_flag:
-            print('--')
-        if d_flag:
-            for path in paths:
-                try:
-                    os.remove(path)
-                except FileNotFoundError:
-                    print('deletion warning: could not find {}'.format(path))
-
-def pathIncludes1(path_list, path):
-    def recrSplit(path_list, path):
-        remaining, dir_name = os.path.split(path)
-        if dir_name in path_list:
-            return 1
-        if len(remaining) == 0:
-            return 0
-        else: return recrSplit(path_list, remaining)
-    #print(recrSplit(path_list, path))
-    return recrSplit(path_list, path)
-
-def pathIncludes0(path_list, path):
-    def recrSplit(path_list, path):
-        remaining, dir_name = os.path.split(path)
-        if dir_name in path_list:
-            return 0
-        if len(remaining) == 0:
-            return 1
-        else: return recrSplit(path_list, remaining)
-    #print(recrSplit(path_list, path))
-    return recrSplit(path_list, path)
-
-def pathFileLen(path):
-    return len(os.path.basename(path))
-
-def fileLastModified(path):
-    return os.stat(path).st_mtime
-
-def subdirDepth(path):
-    def recrSplit(path):
-        remaining, _ = os.path.split(path)
-        if len(remaining) == 0:
-            return 0
-        else: return 1 + recrSplit(remaining)
-    return recrSplit(path)
-
-def condenseDups(dup_dict):
-    local_duplicates = []
-    dup_dirs = []
-    misc_duplicates = []
-    for (csum, size), path_list in dup_dict.items():
-        dir_list = [os.path.dirname(path) for path in path_list]
-        if len(set(dir_list)) == 1:
-            #print('local duplicate',*path_list, sep='\n')
-            local_duplicates.append((csum, size, path_list))
-            continue
-        #if len(set(dir_list)) < len(dir_list):
-        #    print('mixed local duplicate',*path_list, sep='\n')
-            #continue
-
-        part_of_dup_dir = False
-        for dir_path in dir_list:
-            if dir_path in [dup_dir[0] for dup_dir in dup_dirs]:
-                #print(dir_path, 'in duplicate dir list')
-                part_of_dup_dir = True
-                break
-        if part_of_dup_dir:
-            misc_duplicates.append((csum, size, path_list))
-            continue
-
-        file_dict_list = [(loadScanRecordAsDict(path), path) 
-                for path in set(dir_list)]
-        duplicate_dirs = compareFileDicts(file_dict_list)
-        if len(duplicate_dirs) == 0:
-            misc_duplicates.append((csum, size, path_list))
-        else:
-            dup_dirs.extend(duplicate_dirs)
-            misc_duplicates.append((csum, size, path_list))
-    return (dup_dirs, local_duplicates + misc_duplicates)
 
 def compareFileDicts(dict_list):
     '''list of tuples (x,y) where dir y has all files in dir x'''
@@ -308,7 +236,6 @@ def removeScanFiles(path):
         os.remove(os.path.join(path, PREV_SCAN_RECORD))
     except FileNotFoundError:
         print(PREV_SCAN_RECORD, 'not found in', path)
-
 
 def writeSummary(s_path, file_dict):
     dup_list = []
