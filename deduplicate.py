@@ -77,6 +77,11 @@ class DupSummary():
                     except FileNotFoundError:
                         print('deletion warning: could not find {}'.format(path))
 
+    def printDupDirs(self):
+        self.dup_dirs.sort(key=lambda x: x[1].lower())
+        for subset_dir, set_dir in self.dup_dirs:
+            print('{} has all the files at\n-{}'.format(set_dir, subset_dir))
+    
     def findDupDirs(self):
         def compareFileDicts(dict_list):
             '''list of tuples (x,y) where dir y has all files in dir x'''
@@ -272,7 +277,7 @@ def main():
                 , args.printall, args.all, d_flag)
         print(dup_summary.sumSize())
         dup_summary.findDupDirs()
-        print(*dup_summary.dup_dirs, sep='\n')
+        dup_summary.printDupDirs()
         dup_summary.sortDups(args.sort)
         dup_summary.printSortResult()
 
