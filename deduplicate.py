@@ -1,3 +1,39 @@
+"""Find and remove duplicate files.
+
+Usage: 
+    deduplicate.py PATH build [--light|--full]
+    deduplicate.py PATH (list|delete) SORT [-a] [-p]
+    deduplicate.py PATH dirs
+    deduplicate.py PATH clean
+
+Commands:
+    build   Write a duplicator_summary file identifying duplicate files 
+    list    Sort and list the results in the deduplicator_summary file 
+    delete  Sort and delete duplicates in the deduplicator_summary file 
+    clean   Remove all .deduplicator_record and .deduplicator_record_prev 
+            files
+
+Options:
+    PATH        The directory to perform the operation.
+    --light     Rebuild scan records. Use previous record data if found.
+    --full      Rebuild scan records.
+    SORT        Key by which to sort primary copies and duplicate copies of
+                a file.
+    -a, --all   Consider all paths with the lowest sort value a primary 
+                location.
+    -p, --printall  Print entries in duplicate list where all copies are
+                primary.
+
+SORT Keys (lowest value considered primary):
+    depth   The number of nested directories in a file path 
+    dlist   1 if a file path contains directories listed in
+            "duplicate directories" deduplicate.ini section
+    plist   0 if a file path contains directories listed in
+            "primary directories" deduplicate.ini section
+    length  The length of the filename in each path
+    date    The last modified value of the file
+"""
+
 import os,sys
 import filecmp
 import csv
@@ -7,7 +43,8 @@ from datetime import datetime
 from pathlib import Path
 from operator import itemgetter
 import yaml
-import argparse
+#import argparse
+from docopt import docopt
 import dupfilters as df
 
 SCAN_RECORD = '.deduplicator_record'
@@ -18,6 +55,7 @@ PREV_SCAN_SUMMARY = 'deduplicator_summary_prev'
 RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
+COMMANDS = ['build', 'list', 'delete', 'dirs', 'clean']
 
 class DupSummary():
     def __init__(self, path, cfg_path, p_flag=False, a_flag=False, d_flag=False):
@@ -248,8 +286,10 @@ class DupSummarizer():
         return local_file_dict
 
 def main():
-    args = parseArgs()
-    path_arg = args.path
+    #args = parseArgs()
+    args = docopt(__doc__)
+    path_arg = args['PATH']
+    #return
     if os.path.isfile(os.path.join(path_arg, CONFIG_FILE)):
         print('reading oonfig file at ', os.path.join(path_arg, CONFIG_FILE))
         config_path = os.path.join(path_arg, CONFIG_FILE)
@@ -258,75 +298,27 @@ def main():
                 , os.path.join(os.path.dirname(sys.argv[0]), CONFIG_FILE))
         config_path = os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE)
 
-    if args.mode == 'clean':
+    if args['clean']:
         print('clean', path_arg)
         removeScanFiles(path_arg)
-    elif args.mode == 'build':
+    elif args['build']:
         dup_summarizer = DupSummarizer(path_arg, args.rescan)
         dup_summarizer.build()
         dup_summarizer.writeSummary()
     else:
-        print('read {} from {} and {} duplicates by {}'.format(
-            SCAN_SUMMARY, path_arg, args.mode, args.sort))
+        print('read {} from {} and list/delete duplicates by {}'.format(
+            SCAN_SUMMARY, path_arg, args['SORT']))
         d_flag = False
-        if args.mode == 'delete': d_flag = True
-        if args.all == True:
-            print('keep all minimum files')
+        if args['delete']: d_flag = True
+        if args['--all']: print('keep all minimum files')
 
         dup_summary = DupSummary(path_arg, config_path
-                , args.printall, args.all, d_flag)
+                , args['--printall'], args['--all'], d_flag)
         print(dup_summary.sumSize())
         dup_summary.findDupDirs()
         dup_summary.printDupDirs()
-        dup_summary.sortDups(args.sort)
+        dup_summary.sortDups(args['SORT'])
         dup_summary.printSortResult()
-
-def parseArgs():
-    modeparser = argparse.ArgumentParser(add_help=False)
-    modegroup = modeparser.add_argument_group('general')
-    modegroup.add_argument('mode', choices=['build','list','delete','clean']
-            , help='''Mode to operate the script in \
-                    \nbuild\tWrite a {} file \n\tidentifying duplicate files \
-                    \nlist\tSort and list the results in the \n\t{} file \
-                    \ndelete\tSort and delete duplicates in the \n\t{} file \
-                    \nclean\tRemove all {} and \n\t{} files'''.format(
-                        SCAN_SUMMARY, SCAN_SUMMARY, SCAN_SUMMARY
-                        , SCAN_RECORD, PREV_SCAN_RECORD))
-                    
-    modegroup.add_argument('path', help='Directory to find duplicates within')
-
-    buildparser = argparse.ArgumentParser(add_help=False)
-    buildgroup = buildparser.add_argument_group('build options')
-    buildgroup.add_argument('rescan', choices=['full','light','none']
-            , default='none', nargs='?', help=
-            'options for building a new {}'.format(SCAN_SUMMARY))
-
-    listparser = argparse.ArgumentParser(add_help=False)
-    listgroup = listparser.add_argument_group('list/delete options')
-    listgroup.add_argument('sort', nargs='?'
-            , choices=['depth', 'dlist', 'plist', 'length', 'date'], help=
-            '''Specify a rule for sorting the paths of a duplicate 
-file. Paths with lower values are considered the  
-file\'s primary location. 
-depth\tThe number of nested directories in a file path 
-dlist\t1 if a file path contains directories listed in
-\t"duplicate directories" deduplicate.ini section
-plist\t0 if a file path contains directories listed in
-\t"primary directories" deduplicate.ini section
-length\tThe length of the filename in each path
-date\tThe last modified value of the file''')
-    listgroup.add_argument('-a', '--all', action='store_true', help=
-            '''consider all paths with the lowest sort value to be a
-primary location''')
-    listgroup.add_argument('-p', '--printall', action='store_true', help=
-            '''when listing duplicates, print entries where all copies
-are primary''')
-
-    parser = argparse.ArgumentParser(parents=[modeparser, buildparser
-        , listparser]
-            #, usage='%(prog)s build|list|delete|clean [options]'
-            , formatter_class=argparse.RawTextHelpFormatter)
-    return parser.parse_args()
 
 def removeScanFiles(path):
     dir_list, _, _ = scanDir(path)
