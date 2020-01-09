@@ -10,19 +10,19 @@ Commands:
     build   Write a duplicator_summary file identifying duplicate files 
     list    Sort and list the results in the deduplicator_summary file 
     delete  Sort and delete duplicates in the deduplicator_summary file 
-    clean   Remove all .deduplicator_record and .deduplicator_record_prev 
+    clean   Remove .deduplicator_record and .deduplicator_record_prev 
             files
 
 Options:
-    PATH        The directory to perform the operation.
+    PATH    The directory to perform the operation.
     --light     Rebuild scan records. Use previous record data if found.
-    --full      Rebuild scan records.
-    SORT        Key by which to sort primary copies and duplicate copies of
-                a file.
+    --full  Rebuild scan records.
+    SORT    Key by which to sort primary copies and duplicate copies of
+            a file.
     -a, --all   Consider all paths with the lowest sort value a primary 
-                location.
+            location.
     -p, --printall  Print entries in duplicate list where all copies are
-                primary.
+            primary.
 
 SORT Keys (lowest value considered primary):
     depth   The number of nested directories in a file path 
@@ -34,7 +34,8 @@ SORT Keys (lowest value considered primary):
     date    The last modified value of the file
 """
 
-import os,sys
+import os
+import sys
 import filecmp
 import csv
 import zlib
@@ -43,7 +44,6 @@ from datetime import datetime
 from pathlib import Path
 from operator import itemgetter
 import yaml
-#import argparse
 from docopt import docopt
 import dupfilters as df
 
@@ -62,7 +62,7 @@ class DupSummary():
         self.path = path
         self.dup_list = self.readSummary() 
         self.filter_result = []
-        self.dup_dirs = []
+        self.dup_dirs = {}
         self.dup_filters = df.DupFilters(cfg_path)
         self.print_all = p_flag
         self.include_all = a_flag
@@ -116,9 +116,11 @@ class DupSummary():
                         print('deletion warning: could not find {}'.format(path))
 
     def printDupDirs(self):
-        self.dup_dirs.sort(key=lambda x: x[1].lower())
-        for subset_dir, set_dir in self.dup_dirs:
-            print('{} has all the files at\n-{}'.format(set_dir, subset_dir))
+        for set_dir, subset_dirs in sorted(
+                self.dup_dirs.items(), key=lambda x: x[0]):
+            print('{} has all the files at:'.format(set_dir))
+            for path in subset_dirs:
+                print(' -', path)
     
     def findDupDirs(self):
         def compareFileDicts(dict_list):
@@ -132,31 +134,29 @@ class DupSummary():
                 return True
             dict_list.sort(key=lambda file_dict: len(file_dict[0]))
             #print([len(file_dict[0]) for file_dict in dict_list])
-            file_dict, path = dict_list.pop(0)
-            dup_dirs = []
-            for other_dict, other_path in dict_list:
-                if subsetDict(file_dict, other_dict):
-                    dup_dirs.append((path, other_path))
+            dup_dirs = {}
+            while len(dict_list) > 1:
+                file_dict, path = dict_list.pop(0)
+                for other_dict, other_path in dict_list:
+                    if subsetDict(file_dict, other_dict):
+                        mergeFileDict(dup_dirs, {other_path: [path]})
             return dup_dirs
 
+        subdir_cache = []
         for _, _, path_list in self.dup_list:
-            dir_list = [os.path.dirname(path) for path in path_list]
-            if len(set(dir_list)) == 1:
+            dir_list = list(set(os.path.dirname(path) for path in path_list))
+            if len(dir_list) == 1:
                 continue
-
-            part_of_dup_dir = False
-            for dir_path in dir_list:
-                if dir_path in [dup_dir[0] for dup_dir in self.dup_dirs]:
-                    part_of_dup_dir = True
-                    break
-            if part_of_dup_dir:
+            if any(dir_path in subdir_cache for dir_path in dir_list):
                 continue
 
             file_dict_list = [(loadScanRecordAsDict(path), path) 
-                    for path in set(dir_list)]
-            duplicate_dirs = compareFileDicts(file_dict_list)
-            if len(duplicate_dirs) > 0:
-                self.dup_dirs.extend(duplicate_dirs)
+                    for path in dir_list]
+            dup_dirs = compareFileDicts(file_dict_list)
+            if len(dup_dirs) > 0:
+                mergeFileDict(self.dup_dirs, dup_dirs)
+                subdir_cache.extend(list(set(sum(dup_dirs.values(), []))))
+        
 
 class DupSummarizer():
     def __init__(self, path, rescan_mode):
@@ -285,40 +285,45 @@ class DupSummarizer():
         mergeFileDict(local_file_dict, subdir_file_dict)
         return local_file_dict
 
+
 def main():
-    #args = parseArgs()
     args = docopt(__doc__)
     path_arg = args['PATH']
-    #return
     if os.path.isfile(os.path.join(path_arg, CONFIG_FILE)):
-        print('reading oonfig file at ', os.path.join(path_arg, CONFIG_FILE))
         config_path = os.path.join(path_arg, CONFIG_FILE)
     else:
-        print('reading oonfig file at '
-                , os.path.join(os.path.dirname(sys.argv[0]), CONFIG_FILE))
-        config_path = os.path.join(os.path.dirname(sys.argv[0]),CONFIG_FILE)
+        config_path = os.path.join(os.path.dirname(sys.argv[0]), CONFIG_FILE)
+    print('reading oonfig file at {}'.format(config_path))
 
     if args['clean']:
         print('clean', path_arg)
         removeScanFiles(path_arg)
     elif args['build']:
-        dup_summarizer = DupSummarizer(path_arg, args.rescan)
+        if args['--full']:
+            dup_summarizer = DupSummarizer(path_arg, 'full')
+        elif args['--light']:
+            dup_summarizer = DupSummarizer(path_arg, 'light')
+        else:
+            dup_summarizer = DupSummarizer(path_arg, 'none')
         dup_summarizer.build()
         dup_summarizer.writeSummary()
-    else:
-        print('read {} from {} and list/delete duplicates by {}'.format(
-            SCAN_SUMMARY, path_arg, args['SORT']))
-        d_flag = False
-        if args['delete']: d_flag = True
-        if args['--all']: print('keep all minimum files')
-
-        dup_summary = DupSummary(path_arg, config_path
-                , args['--printall'], args['--all'], d_flag)
+    elif args['dirs']:
+        dup_summary = DupSummary(path_arg, config_path)
         print(dup_summary.sumSize())
         dup_summary.findDupDirs()
         dup_summary.printDupDirs()
+    else:
+        print('read {} from {} and {} duplicates by {}'.format(
+            SCAN_SUMMARY, path_arg, 'delete' if args['delete'] else 'list'
+            , args['SORT']))
+        if args['--all']: print('keep all minimum files')
+
+        dup_summary = DupSummary(path_arg, config_path
+                , args['--printall'], args['--all'], args['delete'])
+        print(dup_summary.sumSize())
         dup_summary.sortDups(args['SORT'])
         dup_summary.printSortResult()
+
 
 def removeScanFiles(path):
     dir_list, _, _ = scanDir(path)
@@ -332,6 +337,7 @@ def removeScanFiles(path):
         os.remove(os.path.join(path, PREV_SCAN_RECORD))
     except FileNotFoundError:
         print(PREV_SCAN_RECORD, 'not found in', path)
+
 
 def loadScanRecordAsDict(path):
     """load a SCAN_RECORD in directory 'path' and return entries as dict
@@ -355,6 +361,7 @@ def loadScanRecordAsDict(path):
                         {(int(row['csum']), int(row['size'])): [file_path]})
     return file_dict
 
+
 def mergeFileDict(root_dict, sub_dict):
     """modify root_dict to add items from sub_dict. assume values are lists.
     
@@ -364,9 +371,11 @@ def mergeFileDict(root_dict, sub_dict):
     for key, paths in sub_dict.items():
         if key in root_dict:
             r_paths = root_dict[key]
-            r_paths.extend(paths)
+            #r_paths.extend(paths)
+            root_dict[key] = list(set(r_paths + paths))
         else:
             root_dict.update({key: paths})
+
 
 def loadScanRecordAsNameDict(path):
     """load a SCAN_RECORD in directory 'path' and return entries as dict
@@ -383,6 +392,7 @@ def loadScanRecordAsNameDict(path):
                 , float(row['m_time']), row['dups'])})
     return file_dict
 
+
 def fileData(dir_entry):
     """return a FileRecord of the corresponding directory entry
 
@@ -395,6 +405,7 @@ def fileData(dir_entry):
             , csum=crc32(dir_entry.path)
             , m_time=file_stat.st_mtime, dups=[])
 
+
 def crc32(filename):
     """open specified file and calculate crc32, return as hex string
 
@@ -406,7 +417,12 @@ def crc32(filename):
     result = 0
     for i in range(max_chunks):
         #read in 64 kb chunks
-        s = fh.read(65536)
+        try:
+            s = fh.read(65536)
+        except OSError as E:
+            print(filename)
+            print(E)
+            sys.exit()
         if not s:
             break
         result = zlib.crc32(s, result)
@@ -414,6 +430,7 @@ def crc32(filename):
     #print(hex(result))
     #return "%08X" % (result & 0xFFFFFFFF)
     return result
+
 
 def scanDir(root):
     """return a 3-tuple of directories, files, and symlinks in dir_path
@@ -437,6 +454,7 @@ def scanDir(root):
         elif entry.is_symlink():
             symlinks.append(entry)
     return (directories, files, symlinks)
-    
+
+
 if __name__ == '__main__':
     main()
