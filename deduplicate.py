@@ -2,7 +2,7 @@
 
 Usage: 
     deduplicate.py PATH build [--light|--full]
-    deduplicate.py PATH (list|delete) SORT [-a] [-p]
+    deduplicate.py PATH (list|delete) SORT [-a] [-p] [-s]
     deduplicate.py PATH dirs
     deduplicate.py PATH clean
 
@@ -23,6 +23,7 @@ Options:
             location.
     -p, --printall  Print entries in duplicate list where all copies are
             primary.
+    -s, --suppress  Continues operation in case of file permission errors.
 
 SORT Keys (lowest value considered primary):
     depth   The number of nested directories in a file path 
@@ -58,7 +59,8 @@ FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
 COMMANDS = ['build', 'list', 'delete', 'dirs', 'clean']
 
 class DupSummary():
-    def __init__(self, path, cfg_path, p_flag=False, a_flag=False, d_flag=False):
+    def __init__(self, path, cfg_path, p_flag=False, a_flag=False
+            , s_flag=False, d_flag=False):
         self.path = path
         self.dup_list = self.readSummary() 
         self.filter_result = []
@@ -66,6 +68,7 @@ class DupSummary():
         self.dup_filters = df.DupFilters(cfg_path)
         self.print_all = p_flag
         self.include_all = a_flag
+        self.suppress_err = s_flag
         self.delete = d_flag
 
     def sumSize(self):
@@ -103,17 +106,23 @@ class DupSummary():
         for prim_paths, paths in self.filter_result:
             if len(paths) > 0 or self.print_all:
                 print(*['prim: ' + path for path in prim_paths], sep='\n')
-            if len(paths) > 0:
-                print(*['dupl: ' + path + ('[DELETED]' if self.delete else '') 
-                    for path in paths], sep='\n')
-            if len(paths) > 0 or self.print_all:
-                print('--')
-            if self.delete:
-                for path in paths:
+            for path in paths:
+                print('dupl: ' + path, end=' ')
+                if self.delete:
                     try:
                         os.remove(path)
+                        print('[DELETED]')
                     except FileNotFoundError:
-                        print('deletion warning: could not find {}'.format(path))
+                        print('\ndeletion warning: could not find', path)
+                    except PermissionError:
+                        if self.suppress_err:
+                            print('[PERMISSION ERROR]')
+                        else:
+                            raise
+                else:
+                    print('')
+            if len(paths) > 0 or self.print_all:
+                print('--')
 
     def printDupDirs(self):
         for set_dir, subset_dirs in sorted(
@@ -318,8 +327,8 @@ def main():
             , args['SORT']))
         if args['--all']: print('keep all minimum files')
 
-        dup_summary = DupSummary(path_arg, config_path
-                , args['--printall'], args['--all'], args['delete'])
+        dup_summary = DupSummary(path_arg, config_path, args['--printall']
+                , args['--all'], args['--suppress'], args['delete'])
         print(dup_summary.sumSize())
         dup_summary.sortDups(args['SORT'])
         dup_summary.printSortResult()
