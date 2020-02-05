@@ -1,13 +1,14 @@
 """Find and remove duplicate files.
 
 Usage: 
-    deduplicate.py PATH build [--light|--full]
+    deduplicate.py PATH (build|index) [--light|--full]
     deduplicate.py PATH (list|delete) SORT [-a] [-p] [-s]
     deduplicate.py PATH dirs
     deduplicate.py PATH clean
 
 Commands:
-    build   Write a duplicator_summary file identifying duplicate files 
+    build   Write a deduplicator_summary file identifying duplicate files 
+    index   Write a deduplicator_index file listing all files 
     list    Sort and list the results in the deduplicator_summary file 
     delete  Sort and delete duplicates in the deduplicator_summary file 
     clean   Remove .deduplicator_record and .deduplicator_record_prev 
@@ -52,7 +53,10 @@ SCAN_RECORD = '.deduplicator_record'
 PREV_SCAN_RECORD = '.deduplicator_record_prev'
 CONFIG_FILE = 'deduplicate.ini'
 SCAN_SUMMARY = 'deduplicator_summary'
+SCAN_INDEX = 'deduplicator_index'
 PREV_SCAN_SUMMARY = 'deduplicator_summary_prev'
+PROGRAM_FILES = [SCAN_RECORD, PREV_SCAN_RECORD, CONFIG_FILE, SCAN_SUMMARY,
+        SCAN_INDEX, PREV_SCAN_SUMMARY]
 RECORD_FIELDNAMES = ['name', 'size', 'csum', 'm_time', 'dups']
 max_checksum_mb = 4
 FileRecord = namedtuple('FileRecord', RECORD_FIELDNAMES)
@@ -168,9 +172,10 @@ class DupSummary():
         
 
 class DupSummarizer():
-    def __init__(self, path, rescan_mode):
+    def __init__(self, path, rescan_mode, i_flag):
         self.path = path
         self.rescan_mode = rescan_mode
+        self.index_flag = i_flag
         #self.file_dict = {}
         
     def build(self):
@@ -178,7 +183,19 @@ class DupSummarizer():
         self.recrScan(self.path)
         print('checking for duplicates')
         self.file_dict = self.recrDupSearch(self.path)
+        print('adding externally indexed files')
+        self.loadIndexes()
 
+    def loadIndexes(self):
+        index_list = [entry.name for entry in os.scandir(self.path) 
+                if SCAN_INDEX in entry.name]
+        for index_file in index_list:
+            with open(os.path.join(self.path, index_file), newline='') as s_file:
+                unique_list = yaml.load(s_file)
+                for path, size, csum in unique_list:
+                    mergeFileDict(self.file_dict, 
+                            {(csum, size): [os.path.join(index_file, path)]})   
+            
     def recrScan(self, path):
         """store a csv SCAN_RECORD at path and in all of its subdirectories
 
@@ -192,7 +209,7 @@ class DupSummarizer():
         """
         def buildRecordList(f_list, path):
             print('building record for {}[{} files]'.format(path, len(f_list)))
-            return [fileData(dir_entry) for dir_entry in file_list]
+            return [fileData(entry) for entry in f_list]
 
         dir_list, file_list, sym_list = scanDir(path)
         for dir_entry in dir_list:
@@ -225,22 +242,27 @@ class DupSummarizer():
         self.listToFile(dedup_record_path, fr_list)
 
     def writeSummary(self):
-        dup_list = []
-        #unique_list = []
-        for (chksm, size), dups in self.file_dict.items():
-            if len(dups) > 1:
-                for path in dups:
-                    #name = os.path.basename(path)
-                    dup_list.append((path, size, chksm))
-            #else:
-                #name = os.path.basename(dups[0])
-                #unique_list.append((dups[0], size, chksm))
-        
-        dup_list.sort(key=itemgetter(1), reverse=True)
-        #unique_list.sort(key=itemgetter(1), reverse=True)
-        with open(os.path.join(self.path, SCAN_SUMMARY), 'w', newline='') \
+        def toList(dict_pair):
+            (chksm, size), paths = dict_pair
+            return [(path, size, chksm) for path in paths]
+
+        file_list = []
+        if self.index_flag:
+            summary_name = SCAN_INDEX
+            for dict_pair in self.file_dict.items():
+                file_list.extend(toList(dict_pair))
+        else:
+            summary_name = SCAN_SUMMARY
+            for f_data, dups in self.file_dict.items():
+                if len(dups) > 1:
+                    file_list.extend(toList((f_data, dups)))
+            file_list.sort(key=itemgetter(1), reverse=True)
+
+        with open(os.path.join(self.path, summary_name), 'w', newline='') \
                 as sum_file:
-            yaml.dump(dup_list, sum_file)
+            yaml.dump(file_list, sum_file)
+
+        return ('wrote {}'.format(summary_name))
 
     @staticmethod
     def listToFile(save_path, filerecord_list):
@@ -307,15 +329,15 @@ def main():
     if args['clean']:
         print('clean', path_arg)
         removeScanFiles(path_arg)
-    elif args['build']:
+    elif args['build'] or args['index']:
         if args['--full']:
-            dup_summarizer = DupSummarizer(path_arg, 'full')
+            dup_summarizer = DupSummarizer(path_arg, 'full', args['index'])
         elif args['--light']:
-            dup_summarizer = DupSummarizer(path_arg, 'light')
+            dup_summarizer = DupSummarizer(path_arg, 'light', args['index'])
         else:
-            dup_summarizer = DupSummarizer(path_arg, 'none')
+            dup_summarizer = DupSummarizer(path_arg, 'none', args['index'])
         dup_summarizer.build()
-        dup_summarizer.writeSummary()
+        print(dup_summarizer.writeSummary())
     elif args['dirs']:
         dup_summary = DupSummary(path_arg, config_path)
         print(dup_summary.sumSize())
@@ -457,8 +479,7 @@ def scanDir(root):
         if entry.is_dir(follow_symlinks=False):
             directories.append(entry)
         elif entry.is_file(follow_symlinks=False):
-            if (entry.name != SCAN_RECORD
-                    and entry.name != PREV_SCAN_RECORD):
+            if not (entry.name in PROGRAM_FILES):
                 files.append(entry)
         elif entry.is_symlink():
             symlinks.append(entry)
