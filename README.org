@@ -1,0 +1,82 @@
+file index can be placed in another directory being checked for
+duplicates and deduplicator will build the file index into the
+deduplicator_summary. Delete operations can be done from the
+summary if no files from the external index are being deleted, i.e.
+the file index contains primary locations.
+The best way to do this is delete by running
+  deduplicate.py <dir> delete plist -a
+and specify the index file as a primary directory in deduplicte.ini
+
+* Deduplicator
+Scripts for 
+- Finding and deleting duplicate files
+- Finding and removing empty directories
+
+** File List
+- =deduplicate.py= :: Generates the list of duplicate files and optionally deletes files from that list.
+- =deemptydir.py= :: Generates the list of directories containing no files and optionally deletes them.
+- =dupfilters.py= :: Defines the filter object used by deduplicate.py for sorting instances of duplicate files.
+All functions for sorting duplicates are defined in this class.
+- =deduplicate.ini= :: A configuration file referenced by deduplicate.py during some sorting functions. 
+All values are example and should be modified to fit use.
+Place a modified copy in the base directory being searched to define a local configuration for that search.
+- =demo_fs/= :: An example directory tree with duplicate files for short tests of script operations.
+All Python files tested exclusively with Python 3.5.3 on Debian 9.
+
+** Usage
+*** Initialization
+=
+deduplicate.py demo_fs/ build
+=
+Builds a list in =demo_fs/= and in each subdirectory (recursive) of the files in that directory. 
+Saves each list as =.deduplicator_record=. Uses these lists to find which files are identical and writes a list of all duplicate instances to =demo_fs/deduplicator_summary=
+**** Options:
+- =--full= :: If any directory already contains a =.deduplicator_record=, rename it to =.deduplicator_record_prev= and generate a new one.
+- =--light= ::  If any directory already contains a =.deduplicator_record=, generate a new one using any data it has for files still in that directory. *Currently does not save old file*
+
+Default behavior is to skip generating any =.deduplicator_record= which already exists.
+*** Listing and Deleting Files
+=
+deduplicate.py demo_fs/ list SORT
+deduplicate.py demo_fs/ delete SORT
+=
+Reads the list of duplicates at =demo_fs/deduplicator_summary= and sorts them into primary and duplicate instances according to the function =SORT=. Prints these sorted lists and exit or delete each file marked as duplicate after listing. (Normal functionality would typically involve running =list= to check whether instances were sorted as intended before running =delete=.)
+**** SORT function keywords:
+- =depth= :: sort instances by the number of directories in each file path
+- =length= :: sort instances by the length of each filename
+- =date= :: sort instances by their *last modified* date
+- =dlist= :: sort instances within particular subdirectories as duplicate (return 1 if match).
+- =plist= :: sort instances within particular subdirectories as primary (return 0 if match).
+Each sort function returns a numeric value for sorting each list instance. Instances with the lowest value are considered primary instances.
+
+For =dlist= and =plist=, the script will first check the =demo_fs/= directory and then the directory of =deduplicate.py= for a =deduplicate.ini= file containing a list of the directories to sort by.
+**** Options:
+- =-a, --all= :: Consider all instances with the lowest sort value as primary. (Default: keep the instance with lexicographically first filepath)
+- =-p, --printall= :: Print entries in sorted duplicate list where all instances are primary. (Default: only list copies when at least one instance is sorted as a duplicate)
+*** Listing Duplicate Directories
+=
+deduplicate.py demo_fs/ dirs
+=
+Reads =demo_fs/deduplicator_summary= to check if =demo_fs/= or any subdirectory contains copies of all the files located in any other of these directories. Prints a list of these directories with the path of each directory which only contains files also in that directory.
+
+For Example: if **DIR_A** has all the files at **DIR_B** and **DIR_B** has all the files at **DIR_C**, =dirs= would return
+- DIR_A
+    - DIR_B
+    - DIR_C
+- DIR_B
+    - DIR_C
+*** Removing *.deduplicator_\** Files
+=
+deduplicate.py demo_fs/ clean
+=
+Deletes the =.deduplicator_record= and =.deduplicator_record_prev= files from =demo_fs/= (if they exist) and from each nested subdirectory.
+
+*** Finding and Deleting Empty Folders
+=
+deemptydir.py demo_fs/
+=
+Find all empty directories (directories with no files or nonempty subdirectories) within =demo_fs/= and list to console. Ignore any =.deduplicator_*= files in this process. Directories which only contain empty subdirectories are listed instead of their subdirectories. 
+
+**** Options:
+- =-d= :: Delete all listed empty directories
+
