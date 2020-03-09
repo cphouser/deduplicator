@@ -9,7 +9,7 @@ Scripts for
 - =deemptydir.py= :: Script that generates the list of directories containing no files and optionally deletes them.
 - =dupfilters.py= :: Class defining the functions used by deduplicate.py for sorting instances of duplicate files. All functions for sorting duplicates are defined in this class. Simple interface for extending with additional functions.
 - =deduplicate.ini= :: A configuration file referenced by deduplicate.py during some sorting functions. All values are example and should be modified to fit use. Place a modified copy in the base directory being searched to define a local configuration for that search.
-- =<dir>= :: An example directory tree with duplicate files for short tests of script operations. All Python files tested exclusively with Python 3.5.3 on Debian 9.
+All Python files tested exclusively with Python 3.5.3 on Debian 9.
 
 ** Usage
 *** Initialization
