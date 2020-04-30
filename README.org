@@ -12,6 +12,8 @@ Scripts for
 All Python files tested exclusively with Python 3.5.3 on Debian 9.
 
 ** Usage
+*NOTE:* The scheme for comparing files is to first compare file size, and then to compare a CRC checksum of the first 4 MiB of the file. File Header information is not used. *This means two files which are the same size and have an idential leading 4 MiB will be considered duplicate.* This may be a problem for multiple versions of a disk image (where size is fixed and data is identical for significant portions of the file). This will likely not be changed unless an issue is opened.
+
 *** Initialization
 =deduplicate.py <dir> build=
 Builds a list in =<dir>= and in each subdirectory (recursive) of the files in that directory. 
